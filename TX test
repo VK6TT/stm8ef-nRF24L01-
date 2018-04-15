@@ -1,0 +1,29 @@
+NVM
+: $HW
+   mybuff P0_width $0 fill \ erase buffer
+   $" Hello World" count ( --- a1 n1 )
+   mybuff swap CMOVE
+;
+
+RAM
+ : PAYLOAD.TX \ send n bytes as set by P0_width
+   SET.TX
+   $A0 (NRF@!) \ Send Loading tx buffer, drop status reply
+   P0_width 0 do  \ Loading tx buffer
+      mybuff I + c@
+      spi drop
+   loop        \ tx n bytes from mybuff
+   _CSN.High
+   _CE.HD   \ 10us minimum, using 130uS
+   _CE.low
+   10ms  10ms      \ allow time for packet to be sent and processed.
+   10ms  10ms           \ Timing depends on what Rx is doing with payload
+   clr_int
+;
+: TestTX \ send "Hello World" 20 times
+   (TX)
+   $HW
+   20 0 do
+      PAYLOAD.TX
+   loop
+   ;
