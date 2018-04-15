@@ -1,0 +1,258 @@
+NVM
+\ definitions *********************************************
+\ pins used
+3 constant _CSN \ pin _CSN on nRF24L01 connected to port D3
+2 constant _CE  \ pin _CE on nRF24L01 connected to port D2
+7 constant MISO \ C7
+6 constant MOSI \ c6
+5 constant _SCK \ c5
+4 constant _IRQ \ pin _IRQ on nRF24L01 connected to port C4
+
+\ constants for ports
+$500A constant PC_ODR
+$500B constant PC_IDR
+$500C constant PC_DDR
+$500D constant PC_CR1
+$500E constant PC_CR2
+$500F constant PD_ODR
+$5010 constant PD_IDR
+$5011 constant PD_DDR
+$5012 constant PD_CR1
+$5013 constant PD_CR2
+
+\ SPI registers
+$5200 constant SPI_CR1
+$5201 constant SPI_CR2
+$5204 constant SPI_DR
+$5203 constant SPI_SR
+
+\ nrf24L01+ registers and commands
+$00 constant R.CONFIG
+$07 constant R.STATUS
+$0A constant  R.RX_ADDR_P0
+$10 constant  R.TX_ADDR
+$11 constant  R.RX_PW_P0
+31 constant P0_width \ bytes in a payload. 1-32 bytes
+$61 constant R_RX_PAYLOAD
+$A0 constant W_TX_PAYLOAD
+$E1 constant FLUSH_TX
+$E2 constant FLUSH_RX
+RAM
+NVM
+\ variables
+variable mybuff P0_width allot 
+RAM
+NVM
+VARIABLE timer
+
+\ Bits
+\ the datasheet uses the notation that Bit 1 is 0b00000010
+\ I normally think of bit1 being 0b00000001
+\ so I define Bit1 to Bit8 to avoid having to remember the
+\ datasheet representation
+\ Confused? Clearly I am.
+$1 constant  Bit0
+$2 constant  Bit1
+$4 constant  Bit2
+$8 constant  Bit3
+$10 constant  Bit4
+$20 constant  Bit5
+$40 constant  Bit6
+$80 constant  Bit7
+RAM
+NVM
+\ SPI Setup and Commands***********************************
+
+\ Init and enable SPI
+\ 76543210
+\ 0         MSB first
+\  0        SPI disabled
+\   111     Baud rate control 111=fmaster/256
+\      1    STM8 is master
+\       0   SCK to 0 when idle
+\        0  First clock transition is when data is read
+\ 00111100  = $3C
+
+: SPIon ( -- )
+  $3C SPI_CR1 C!
+  $03 SPI_CR2 C!  \ no NSS, FD, no CRC, software slave, master
+  $7C SPI_CR1 C!  \ enable SPI
+;
+: SPIoff ( -- )
+  0 SPI_CR1 C!    \ disable SPI
+;
+: SPI_SR? ( c1 ---- f1 ) \ test SPI status reg
+   SPI_SR C@ AND
+;
+: TXE?   \ Wait till TXempty flag set
+   Begin
+      $02 SPI_SR?
+   Until
+;
+: RXNE? \ wait till RX not empty flag set
+   Begin
+      $01 SPI_SR?
+   Until
+;
+: SPI ( c --- c )
+   TXE?
+   SPI_DR c!
+   TXE? RXNE?
+   SPI_DR c@
+;
+\ timing **************************************************
+\ delays seem close enough
+: tSet TIM 25000 + timer ! ;
+: tTest TIM timer @ - 0 < ;
+: D30us tSet begin ttest until ;
+: D130us 4 0 do D30us loop ;
+: 2ms  15 0 do D130us loop ;
+: 10ms  5 0 do 2ms loop ;
+
+\ bit and variable manipulation ***************************
+RAM
+NVM  \ keep this word during development
+\ Enable compile mode and compile the code to set|reset the bit at address
+  : ]B! ( 1|0 addr bit -- )
+     ROT 0= 1 AND SWAP 2* $10 + + $72 C, C, , ]
+  ; IMMEDIATE
+
+: >LOW ( c1 bitn ---- c2 ) \ set bitn low
+   NOT AND
+;
+: >HIGH ( c1 bitn ---- c2 ) \ set bitn high
+   OR
+;
+: setup_pins
+   $C ( 0b00001100 ) PD_DDR c! \ Port D outputs
+   $C  PD_CR1 c! \ set up as push pull outputs
+   $C  PD_CR2 C! \ fast mode outputs
+   $60 ( 0b01100000 ) PC_DDR c! \ port C outputs
+   $60 PC_CR1 c!  \ set as push pull outputs
+   $60 PC_CR2 c!  \ set as fast mode outputs
+   \ Port C inputs are floating, no interrupts enabled
+;
+: _CE.LOW ( -- )  [ 0 PD_ODR _CE ]B! D30us ;
+: _CE.High ( -- ) [ 1 PD_ODR _CE ]B! D30us ;
+: _CSN.LOW ( -- )  [ 0 PD_ODR _CSN ]B! D30us ;
+: _CSN.High ( -- ) [ 1 PD_ODR _CSN ]B! D30us ;
+
+\ talk to nRF24L01+ ***************************************
+: (nrf@!) ( c1 ---- ) _CE.LOW _CSN.LOW spi drop ;
+: nRF@n ( c2 c1 --- cN..C1 ) \ read c2 bytes
+   (NRF@!)
+   0 do
+      -1 spi
+   loop
+   _CSN.High
+;
+: nRF@1 ( c1 --- c2 ) \ fetch the contents of register c1
+    1 swap nrf@n
+;
+\ Config register operations
+: nRF!_  ( c1 A1 --- c1 ) \ factored starting seq
+   $20 OR
+   (nrf@!) \ calling word must set _CSN high when finished sending data
+   ;
+: nRF!0 ( c1 --- ) \ send command c1
+   nRF!_
+   _CSN.High
+;
+: nRF!n ( Cn....C1 A1 n --- ) \ write to nRF24 register A1 n bytes
+   swap
+   nRF!_ \ sends address to write to
+   0 do
+      SPI drop
+   loop
+   _CSN.high
+;
+: nRF!1 1 nrf!n ;
+: nRF!5 5 nrf!n ;
+
+: IRQ@AND  ( c1 ---- f1 ) \ Get Interrupts then AND with C1
+   R.Status _csn.low spi _csn.high AND \ cant use nRF@1 since it toggles _CE
+;
+: TEST_INT ( c1 --- f1 )
+   dup bit4 AND if ." Max retries cleared" cr -1 else 0 then ( --- c1 f1 )
+   over Bit5 AND if ." Tx data sent" cr -1 else 0 then OR
+   SWAP Bit6 AND if ." Rx data ready" cr -1 else 0 then OR
+;
+: CLR_INT
+   R.Status nRF@1
+   TEST_INT
+   if    $70  R.Status nRF!1 \ 0b01110000
+   then
+;
+: RX_DR? Bit6 IRQ@AND ;
+: TX_DS? Bit5 IRQ@AND ;
+: MAX_RT? Bit4 IRQ@AND ;
+: RX_P_NO $0E IRQ@AND ; \ 0b00001110
+: TX_Full? bit0 IRQ@AND ;
+
+\ lets setup nrf24L01+ how we want ************************
+: SetAddress \ LSB first
+   $E7 $D6 $C5 $B4 $A3 R.RX_ADDR_P0 nRF!5
+   $E7 $D6 $C5 $B4 $A3 R.TX_ADDR nRF!5
+;
+: SetPL_width \ bytes in rx payload
+   P0_width R.RX_PW_P0 nRF!1
+;
+: R@CONFIG  ( --- c1 ) \ fetch config reg
+   R.Config nRF@1
+;
+: R!CONFIG ( c1 ----- ) \ write C1 to config reg
+   R.Config nRF!1 2ms
+;
+: TX.PWR-18 \ SEt to -18dBm output and 250kbps
+     $0 bit5 >high $06 nRF!1
+;
+: SetRetry \ use 750us retransmit delay, 15 retries
+   $8F $04 nRF!1 ;
+: myChannel  $70 5 nrf!1 ;
+: >Standby1 _ce.low R@CONFIG   bit1 >high R!CONFIG 2ms ;
+: PWR.Dn _ce.low R@Config   bit1 >low R!CONFIG   ;
+: FlushRx  $E2 nRF!0 ;
+: FlushTx  $E1 nRF!0 ;
+
+: _CE.HD \ set CE high and pause
+   _ce.high D130us ;
+: Set.RX \ set as a receiver
+   R@Config bit0 >high  R!CONFIG
+;
+: Set.TX \ set as a transmitter
+   R@Config bit0 >low  R!CONFIG
+;
+: (RST)
+   setup_pins
+   SPIOn
+   _CSN.high
+   _CE.HD
+;
+: After_RST \ stuff we must do after a reset or power on
+   10ms
+   (RST)    \ set up pins and SPI
+   10ms
+   >Standby1
+   SetAddress
+   SetPL_width \ effectively enables Pipe0
+   TX.PWR-18
+   FLUSHTX
+   FLUSHRX
+   CLR_INT
+   Setretry
+   myChannel
+   ." Device reset" cr
+;
+: (RX)
+   after_rst   \ setup and go to standby1
+   Set.RX      \ Will be a RX
+   _CE.HD   \ Enter RX mode
+;
+: (TX)
+   after_rst
+   Set.TX
+   >STANDBY1
+;
+: .Ver ." 103" ;
+RAM
+COLD
