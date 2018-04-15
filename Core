@@ -32,7 +32,7 @@ $07 constant R.STATUS
 $0A constant  R.RX_ADDR_P0
 $10 constant  R.TX_ADDR
 $11 constant  R.RX_PW_P0
-31 constant P0_width \ bytes in a payload. 1-32 bytes
+32 constant P0_width \ bytes in a payload. 1-32 bytes
 $61 constant R_RX_PAYLOAD
 $A0 constant W_TX_PAYLOAD
 $E1 constant FLUSH_TX
