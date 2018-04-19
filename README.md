@@ -1,4 +1,4 @@
-[![Test](https://travis-ci.org/TG9541/stm8ef.svg)](https://travis-ci.org/TG9541/stm8ef-nRF24L01)
+[![Test](https://travis-ci.org/TG9541/stm8ef-nRF24L01.svg)](https://travis-ci.org/TG9541/stm8ef-nRF24L01)
 
 # A barebones nRF24L01+ library for STM8 barebones breakout board
 
