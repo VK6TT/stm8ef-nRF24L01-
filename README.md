@@ -1,3 +1,5 @@
+[![Test](https://travis-ci.org/TG9541/stm8ef-nRF24L01.svg)](https://travis-ci.org/TG9541/stm8ef-nRF24L01)
+
 # A barebones nRF24L01+ library for STM8 barebones breakout board
 
 Thomas, TG9541, has done a great job correcting the SPI libraries for the stm8ef. At present I am using high level words for the SPI but this is a temporary measure.
