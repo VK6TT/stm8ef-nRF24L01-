@@ -43,7 +43,6 @@ NVM
 variable mybuff P0_width allot 
 RAM
 NVM
-VARIABLE timer
 
 \ Bits
 \ the datasheet uses the notation that Bit 1 is 0b00000010
@@ -102,10 +101,8 @@ NVM
 ;
 \ timing **************************************************
 \ delays seem close enough
-: tSet TIM 25000 + timer ! ;
-: tTest TIM timer @ - 0 < ;
-: D30us tSet begin ttest until ;
-: D130us 4 0 do D30us loop ;
+: D30us 11 FOR ( 2.5us per empty loop ) NEXT ;
+: D130us D30us D30us D30us D30us ;
 : 2ms  15 0 do D130us loop ;
 : 10ms  5 0 do 2ms loop ;
 
