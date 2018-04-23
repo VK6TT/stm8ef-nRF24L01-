@@ -235,64 +235,87 @@ NVM
    $E7 $D6 $C5 $B4 $A3 R.RX_ADDR_P0 nRF!5
    $E7 $D6 $C5 $B4 $A3 R.TX_ADDR nRF!5
 ;
+
 : SetPL_width \ bytes in rx payload
    P0_width R.RX_PW_P0 nRF!1
 ;
+
 : R@Config  ( --- c1 ) \ fetch config reg
    R.CONFIG nRF@1
 ;
-: R!Config ( c1 ----- ) \ write C1 to config reg
-   R.CONFIG nRF!1 2ms
-;
-: TX.PWR-18 \ SEt to -18dBm output and 250kbps
-     $0 bit5 >high $06 nRF!1
-;
-: SetRetry \ use 750us retransmit delay, 15 retries
-   $8F $04 nRF!1 ;
-: myChannel  $70 5 nrf!1 ;
-: >Standby1 _ce.low R@CONFIG   bit1 >high R!CONFIG 2ms ;
-: PWR.Dn _ce.low R@Config   bit1 >low R!CONFIG   ;
-: FlushRx  $E2 nRF!0 ;
-: FlushTx  $E1 nRF!0 ;
 
-: _CE.HD \ set CE high and pause
-   _ce.high D130us ;
-: Set.RX \ set as a receiver
+: R!Config ( c1 ----- ) \ write C1 to config reg
+   R.CONFIG nRF!1
+;
+
+: TX.PWR-18 ( -- )
+  \ SEt to -18dBm output and 250kbps
+   $0 bit5 >high $06 nRF!1
+;
+
+: SetRetry \ use 750us retransmit delay, 15 retries
+  $8F $04 nRF!1 ;
+: myChannel  $70 5 nrf!1 ;
+
+: >Standby1
+  \ enter Standby state
+  _ce.low R@CONFIG   bit1 >high R!CONFIG   2ms
+;
+
+: PWR.Dn ( -- )
+  _ce.low R@Config   bit1 >low R!CONFIG
+;
+
+: FlushRx ( -- )
+  $E2 nRF!0
+;
+
+: FlushTx ( -- )
+  $E1 nRF!0
+;
+
+: _CE.HD ( -- )
+  \ set CE high and pause
+  _ce.high D130us
+;
+
+: Set.RX ( -- )
+  \ set as a receiver
    R@Config bit0 >high  R!CONFIG
 ;
-: Set.TX \ set as a transmitter
+
+: Set.TX ( -- )
+  \ set as a transmitter
    R@Config bit0 >low  R!CONFIG
 ;
-: (RST)
-   setup_pins
-   SPIOn
-   _CSN.high
-   _CE.HD
-;
-: After_RST \ stuff we must do after a reset or power on
-   10ms
-   (RST)    \ set up pins and SPI
-   10ms
+
+: nRF24Init ( -- )
+   \ stuff we must do after a reset or power on
+   setup_pins \ set up pins and SPI (RST)
+   SPIOn _CSN.high _CE.HD
+   9 FOR 10ms NEXT \ spec is 100ms
    >Standby1
    SetAddress
-   SetPL_width \ effectively enables Pipe0
+   SetPL_width     \ effectively enables Pipe0
    TX.PWR-18
-   FLUSHTX
-   FLUSHRX
+   FlushRx
+   FlushTx
    CLR_INT
-   Setretry
+   SetRetry
    myChannel
    ." Device reset" cr
 ;
+
 : (RX)
-   after_rst   \ setup and go to standby1
+   nRF24Init   \ setup and go to standby1
    Set.RX      \ Will be a RX
-   _CE.HD   \ Enter RX mode
+   _CE.HD      \ Enter RX mode
 ;
+
 : (TX)
-   after_rst
-   Set.TX
-   >STANDBY1
+   nRF24Init   \ setup and go to standby1
+   Set.TX      \ enter TX mode
+   \ when is this required? >STANDBY1
 ;
 : .Ver ." 103" ;
 RAM
