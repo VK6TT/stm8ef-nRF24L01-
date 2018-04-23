@@ -101,10 +101,10 @@ NVM
 \ timing **************************************************
 
 \ delays seem close enough
-: D30us 11 FOR ( 2.5us per empty loop ) NEXT ;
+: D30us 11 FOR ( 2.5us per empty LOOP ) NEXT ;
 : D130us D30us D30us D30us D30us ;
 : 2ms  14 FOR D130us NEXT ;
-: 10ms  5 0 do 2ms loop ;
+: 10ms  5 0 DO 2ms LOOP ;
 
 \ bit and variable manipulation ***************************
 
@@ -145,19 +145,19 @@ NVM
 \ talk to nRF24L01+ ***************************************
 
 : (nrf@!) ( c1 ---- )
-  _CE.LOW _CSN.LOW SPI  drop
+  _CE.LOW _CSN.LOW SPI  DROP
 ;
 
 : nRF@n ( c2 c1 --- cN..C1 ) \ read c2 bytes
    (nrf@!)
-   0 do
+   0 DO
       -1 SPI
-   loop
+   LOOP
    _CSN.High
 ;
 
 : nRF@1 ( c1 --- c2 ) \ fetch the contents of register c1
-    1 swap nrf@n
+    1 SWAP nRF@n
 ;
 
 \ Config register operations
@@ -173,20 +173,20 @@ NVM
 ;
 
 : nRF!n ( Cn....C1 A1 n --- ) \ write to nRF24 register A1 n bytes
-   swap
+   SWAP
    nRF!_ \ sends address to write to
-   0 do
-      SPI drop
-   loop
+   0 DO
+      SPI DROP
+   LOOP
    _CSN.high
 ;
 
 : nRF!1
-  1 nrf!n
+  1 nRF!n
 ;
 
 : nRF!5
-  5 nrf!n
+  5 nRF!n
 ;
 
 : IRQ@AND  ( c1 ---- f1 ) \ Get Interrupts then AND with C1
@@ -194,16 +194,16 @@ NVM
 ;
 
 : TEST_INT ( c1 --- f1 )
-   dup bit4 AND if ." Max retries cleared" cr -1 else 0 then ( --- c1 f1 )
-   over Bit5 AND if ." Tx data sent" cr -1 else 0 then OR
-   SWAP Bit6 AND if ." Rx data ready" cr -1 else 0 then OR
+   DUP bit4 AND if ." Max retries cleared" cr -1 ELSE 0 THEN ( --- c1 f1 )
+   OVER Bit5 AND if ." Tx data sent" cr -1 ELSE 0 THEN OR
+   SWAP Bit6 AND if ." Rx data ready" cr -1 ELSE 0 THEN OR
 ;
 
 : CLR_INT
    R.STATUS nRF@1
-   TEST_INT
-   if    $70  R.STATUS nRF!1 \ 0b01110000
-   then
+   TEST_INT IF
+     $70  R.STATUS nRF!1 \ 0b01110000
+   THEN
 ;
 
 : RX_DR? Bit6 IRQ@AND ;
@@ -232,20 +232,20 @@ NVM
 
 : TX.PWR-18 ( -- )
   \ SEt to -18dBm output and 250kbps
-   $0 bit5 >high $06 nRF!1
+   $0 bit5 >HIGH $06 nRF!1
 ;
 
 : SetRetry \ use 750us retransmit delay, 15 retries
   $8F $04 nRF!1 ;
-: myChannel  $70 5 nrf!1 ;
+: myChannel  $70 5 nRF!1 ;
 
 : >Standby1
   \ enter Standby state
-  _ce.low R@CONFIG   bit1 >high R!CONFIG   2ms
+  _ce.low R@CONFIG   bit1 >HIGH R!CONFIG   2ms
 ;
 
 : PWR.Dn ( -- )
-  _ce.low R@Config   bit1 >low R!CONFIG
+  _ce.low R@Config   bit1 >LOW R!CONFIG
 ;
 
 : FlushRx ( -- )
@@ -263,12 +263,12 @@ NVM
 
 : Set.RX ( -- )
   \ set as a receiver
-   R@Config bit0 >high  R!CONFIG
+   R@Config bit0 >HIGH  R!CONFIG
 ;
 
 : Set.TX ( -- )
   \ set as a transmitter
-   R@Config bit0 >low  R!CONFIG
+   R@Config bit0 >LOW  R!CONFIG
 ;
 
 : nRF24Init ( -- )
