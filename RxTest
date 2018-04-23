@@ -1,6 +1,8 @@
 variable mycount
 variable bigcount
 
+: BIT_RX_DR $40 ;
+
 : PAYLOAD.RX ( ---- n1 n2 ... nn ) \ returns n bytes as set by P0_width
    begin
       rx_dr? \ wait until data is ready
