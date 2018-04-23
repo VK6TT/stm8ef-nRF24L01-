@@ -20,10 +20,11 @@ RAM
    10ms  10ms           \ Timing depends on what Rx is doing with payload
    clr_int
 ;
+
 : TestTX \ send "Hello World" 20 times
    (TX)
    $HW
    20 0 do
       PAYLOAD.TX
    loop
-   ;
+;

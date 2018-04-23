@@ -129,13 +129,29 @@ NVM  \ keep this word during development
    $60 PC_CR2 c!  \ set as fast mode outputs
    \ Port C inputs are floating, no interrupts enabled
 ;
-: _CE.LOW ( -- )  [ 0 PD_ODR _CE ]B! D30us ;
-: _CE.High ( -- ) [ 1 PD_ODR _CE ]B! D30us ;
-: _CSN.LOW ( -- )  [ 0 PD_ODR _CSN ]B! D30us ;
-: _CSN.High ( -- ) [ 1 PD_ODR _CSN ]B! D30us ;
+
+: _CE.LOW ( -- )
+  [ 0 PD_ODR _CE ]B! D30us
+;
+
+: _CE.High ( -- )
+  [ 1 PD_ODR _CE ]B! D30us
+;
+
+: _CSN.LOW ( -- )
+  [ 0 PD_ODR _CSN ]B! D30us
+;
+
+: _CSN.High ( -- )
+  [ 1 PD_ODR _CSN ]B! D30us
+;
 
 \ talk to nRF24L01+ ***************************************
-: (nrf@!) ( c1 ---- ) _CE.LOW _CSN.LOW spi drop ;
+
+: (nrf@!) ( c1 ---- )
+  _CE.LOW _CSN.LOW spi drop
+;
+
 : nRF@n ( c2 c1 --- cN..C1 ) \ read c2 bytes
    (NRF@!)
    0 do
@@ -143,18 +159,22 @@ NVM  \ keep this word during development
    loop
    _CSN.High
 ;
+
 : nRF@1 ( c1 --- c2 ) \ fetch the contents of register c1
     1 swap nrf@n
 ;
+
 \ Config register operations
 : nRF!_  ( c1 A1 --- c1 ) \ factored starting seq
    $20 OR
    (nrf@!) \ calling word must set _CSN high when finished sending data
-   ;
+;
+
 : nRF!0 ( c1 --- ) \ send command c1
    nRF!_
    _CSN.High
 ;
+
 : nRF!n ( Cn....C1 A1 n --- ) \ write to nRF24 register A1 n bytes
    swap
    nRF!_ \ sends address to write to
@@ -163,23 +183,32 @@ NVM  \ keep this word during development
    loop
    _CSN.high
 ;
-: nRF!1 1 nrf!n ;
-: nRF!5 5 nrf!n ;
+
+: nRF!1
+  1 nrf!n
+;
+
+: nRF!5
+  5 nrf!n
+;
 
 : IRQ@AND  ( c1 ---- f1 ) \ Get Interrupts then AND with C1
    R.STATUS _csn.low spi _csn.high AND \ cant use nRF@1 since it toggles _CE
 ;
+
 : TEST_INT ( c1 --- f1 )
    dup bit4 AND if ." Max retries cleared" cr -1 else 0 then ( --- c1 f1 )
    over Bit5 AND if ." Tx data sent" cr -1 else 0 then OR
    SWAP Bit6 AND if ." Rx data ready" cr -1 else 0 then OR
 ;
+
 : CLR_INT
    R.STATUS nRF@1
    TEST_INT
    if    $70  R.STATUS nRF!1 \ 0b01110000
    then
 ;
+
 : RX_DR? Bit6 IRQ@AND ;
 : TX_DS? Bit5 IRQ@AND ;
 : MAX_RT? Bit4 IRQ@AND ;
