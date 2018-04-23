@@ -87,49 +87,54 @@ NVM
   $03 SPI_CR2 C!  \ no NSS, FD, no CRC, software slave, master
   $7C SPI_CR1 C!  \ enable SPI
 ;
+
 : SPIoff ( -- )
-  0 SPI_CR1 C!    \ disable SPI
+  \ set up pins and SPI (RST)
+  0 SPI_CR1 C!
 ;
-: SPI_SR? ( c1 ---- f1 ) \ test SPI status reg
-   SPI_SR C@ AND
+
+: SPI_SR? ( c1 ---- f1 )
+  \ test SPI status reg
+  SPI_SR C@ AND
 ;
+
 : TXE?   \ Wait till TXempty flag set
    Begin
       $02 SPI_SR?
    Until
 ;
+
 : RXNE? \ wait till RX not empty flag set
    Begin
       $01 SPI_SR?
    Until
 ;
+
 : SPI ( c --- c )
    TXE?
    SPI_DR c!
    TXE? RXNE?
    SPI_DR c@
 ;
+
 \ timing **************************************************
+
 \ delays seem close enough
 : D30us 11 FOR ( 2.5us per empty loop ) NEXT ;
 : D130us D30us D30us D30us D30us ;
-: 2ms  15 0 do D130us loop ;
+: 2ms  14 FOR D130us NEXT ;
 : 10ms  5 0 do 2ms loop ;
 
 \ bit and variable manipulation ***************************
-RAM
-NVM  \ keep this word during development
-\ Enable compile mode and compile the code to set|reset the bit at address
-  : ]B! ( 1|0 addr bit -- )
-     ROT 0= 1 AND SWAP 2* $10 + + $72 C, C, , ]
-  ; IMMEDIATE
 
 : >LOW ( c1 bitn ---- c2 ) \ set bitn low
    NOT AND
 ;
+
 : >HIGH ( c1 bitn ---- c2 ) \ set bitn high
    OR
 ;
+
 : setup_pins
    $C ( 0b00001100 ) PD_DDR c! \ Port D outputs
    $C  PD_CR1 c! \ set up as push pull outputs
