@@ -1,6 +1,34 @@
+RAM
+#require WIPE
+
 NVM
+
+\ nrf24L01+ registers and commands
+$07 constant R.STATUS
+$0A constant R.RX_ADDR_P0
+$10 constant R.TX_ADDR
+$11 constant R.RX_PW_P0
+$61 constant R_RX_PAYLOAD
+$A0 constant W_TX_PAYLOAD
+
+32 CONSTANT P0_WIDTH                 \ bytes in a payload. 1-32 bytes
+   VARIABLE mybuff P0_WIDTH ALLOT
+
+WIPE
+
+#require ]B!
+#require ]C!
+
 \ definitions *********************************************
+
+\ nrf24L01+ registers and commands
+$00 constant R.CONFIG
+$E1 constant FLUSH_TX
+$E2 constant FLUSH_RX
+
+
 \ pins used
+
 3 constant _CSN \ pin _CSN on nRF24L01 connected to port D3
 2 constant _CE  \ pin _CE on nRF24L01 connected to port D2
 7 constant MISO \ C7
@@ -26,24 +54,6 @@ $5201 constant SPI_CR2
 $5204 constant SPI_DR
 $5203 constant SPI_SR
 
-\ nrf24L01+ registers and commands
-$00 constant R.CONFIG
-$07 constant R.STATUS
-$0A constant  R.RX_ADDR_P0
-$10 constant  R.TX_ADDR
-$11 constant  R.RX_PW_P0
-32 constant P0_width \ bytes in a payload. 1-32 bytes
-$61 constant R_RX_PAYLOAD
-$A0 constant W_TX_PAYLOAD
-$E1 constant FLUSH_TX
-$E2 constant FLUSH_RX
-RAM
-NVM
-\ variables
-variable mybuff P0_width allot 
-RAM
-NVM
-
 \ Bits
 \ the datasheet uses the notation that Bit 1 is 0b00000010
 \ I normally think of bit1 being 0b00000001
@@ -58,7 +68,7 @@ $10 constant  Bit4
 $20 constant  Bit5
 $40 constant  Bit6
 $80 constant  Bit7
-RAM
+
 NVM
 \ SPI Setup and Commands***********************************
 
