@@ -1,0 +1,61 @@
+NVM
+5 constant _LED \ Led connected to port B, Pin 5
+$5005 constant PB_ODR
+$5007 constant PB_DDR
+$5008 constant PB_CR1
+: Setup_B
+   BIT5 PB_DDR c! \ Port B outputs
+   BIT5 PB_CR1 c! \ set up as push pull outputs
+;
+: LED.On ( -- )  [ 0 PB_ODR _LED ]B! ;
+: LED.Off ( -- ) [ 1 PB_ODR _LED ]B! ;
+: FlashLed  LED.ON 2ms LED.Off   
+;
+: TX.PWR0 \ SEt to 0dBm output and 250kbps
+     $0 BIT5 >high BIT2 >high BIT1 >high $06 nRF!1
+;
+: PAYLOAD.RX ( ---- n1 n2 ... nn ) \ returns n bytes as set by P0_width
+   BEGIN
+      rx_dr? \ wait until data is ready
+   UNTIL
+    >STANDBY1
+   R_RX_PAYLOAD (NRF@!) \ sends command "get bytes in the payload"
+   P0_WIDTH 0 
+   DO
+      $ff SPI
+      MYBUFF I + c!
+   LOOP
+   _csn.high 
+   BIT6 R.STATUS nRF!1 
+   CLR_INT
+   _CE.HD \ go back to being a RX
+   ;
+: TESTRX
+   (RX) \ now acting as a RX
+   _ce.low
+   TX.PWR0
+   _ce.high
+   BEGIN
+      rx_dr?
+      IF  
+         PAYLOAD.RX
+         MYBUFF P0_WIDTH type cr
+      THEN
+      ?RX \ input on serial line 
+      IF 32 = ELSE 0 THEN \ only if it is a space char do we exit
+   UNTIL
+   ;
+ \ on power up flash led so we know device is a pong
+: Pong
+   Setup_B
+   Led.On 10ms  
+   Led.Off 
+   50 0  
+   DO 
+      10ms 
+   LOOP 
+   FlashLed
+   TESTRX
+   ;
+' PONG 'Boot !  
+RAM
