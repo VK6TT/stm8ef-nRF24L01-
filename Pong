@@ -1,6 +1,4 @@
 NVM
-variable mycount
-variable bigcount
 5 constant _LED \ Led connected to port B, Pin 5
 $5005 constant PB_ODR
 $5007 constant PB_DDR
@@ -13,7 +11,9 @@ $5008 constant PB_CR1
 : LED.Off ( -- ) [ 1 PB_ODR _LED ]B! ;
 : FlashLed  LED.ON 2ms LED.Off   
 ;
-
+: TX.PWR0 \ SEt to 0dBm output and 250kbps
+     $0 bit5 >high bit2 >high bit1 >high $06 nRF!1
+;
 : PAYLOAD.RX ( ---- n1 n2 ... nn ) \ returns n bytes as set by P0_width
    begin
       rx_dr? \ wait until data is ready
@@ -25,30 +25,37 @@ $5008 constant PB_CR1
       mybuff I + c!
    loop
    _csn.high 
-   bit6 R.STATUS nRF!1 \ clears rx_dr? flag
+   bit6 R.STATUS nRF!1 
    CLR_INT
    _CE.HD \ go back to being a RX
    ;
 : TestRx
    (RX) \ now acting as a RX
-   0 mycount !
-   0 bigcount !
+   _ce.low
+   TX.PWR0
+   _ce.high
    begin
       rx_dr?
-      if PAYLOAD.RX
+      if  
+         PAYLOAD.RX
          mybuff P0_width type cr
-         Flashled
       then
-      mycount @ 0= 
-      if 1 bigcount +! 
-      then
-      1 mycount +!
-      bigcount @ 150 = 
+      ?RX \ input on serial line 
+      if 32 = else 0 then \ only if it is a space char do we exit
    until
    ;
+ \ on power up flash led so we know device is a pong
 : Pong
    Setup_B
+   Led.On 10ms  
+   Led.Off 
+   50 0  
+   do 
+      10ms 
+   loop 
+   FlashLed
    testrx
    ;
 ' PONG 'Boot !  
 RAM
+   
