@@ -1,75 +1,87 @@
-\ changed $HW to erase buffer with spaces so that the count and retries saved into mybuff typed correctly at RX end
+\ changed $HW to erase buffer with spaces so that the count and
+\ retries saved into mybuff typed correctly at RX end
+
+\res MCU: STM8S103
+\res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
+\res export PB_ODR PB_DDR PB_CR1 PB_CR2NVM
+
 NVM
-: $HW
-  mybuff P0_width $20 fill \ erase buffer
-  $" Hello World" count ( --- a1 n1 )
-  mybuff swap CMOVE
+
+: $HW  ( -- )
+   mybuff P0_width $20 FILL \ erase buffer
+   $" Hello World" COUNT  ( --- a1 n1 )
+   mybuff SWAP CMOVE
+   ;
+
+5 CONSTANT _LED \ Led connected to port B, Pin 5
+
+: Setup_B  ( -- )
+   BIT5 PB_DDR C! \ Port B outputs
+   BIT5 PB_CR1 C! \ set up as push pull outputs
 ;
 
-5 constant _LED \ Led connected to port B, Pin 5
-$5005 constant PB_ODR
-$5006 constant PB_IDR
-$5007 constant PB_DDR
-$5008 constant PB_CR1
+: LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
 
-: Setup_B
-   Bit5 PB_DDR c! \ Port B outputs
-   Bit5 PB_CR1 c! \ set up as push pull outputs
-;
-: LED.On ( -- )  [ 0 PB_ODR _LED ]B! ;
-: LED.Off ( -- ) [ 1 PB_ODR _LED ]B! ;
-: @retries ( --- n1 )
+: LED.Off  ( -- ) [ 1 PB_ODR _LED ]B! ;
+
+: @retries  ( --- n1 )
    $08 nRF@1   \ get count of lost packets:retries
    $0F AND     \ mask off lost packets
-;   
-: FlashLed
-   16 swap - 0
-   do
-      LED.ON 
-      10ms 
+;
+
+: FlashLed  ( -- )
+   16 SWAP - 0
+   DO
+      LED.ON
+      10ms
       LED.Off
       10ms 10ms 10ms 10ms
-   loop
+   LOOP
    ;
-: PAYLOAD.TX \ send n bytes as set by P0_width
+
+: PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
    SET.TX
    $A0 (NRF@!) \ Send Loading tx buffer, drop status reply
-   P0_width 0 do  \ Loading tx buffer
-      I mybuff + c@
-      spi drop
-   loop        \ tx n bytes from mybuff
+   P0_WIDTH 0 DO  \ Loading tx buffer
+      I mybuff + C@
+      SPI DROP
+   LOOP        \ tx n bytes from mybuff
    _CSN.High
    _CE.HD   \ 10us minimum, using 130uS
-   _CE.low
+   _CE.LOW
    10ms  10ms        \ allow time for packet to be sent and processed.
    10ms  10ms        \ Timing depends on what Rx is doing with payload
-   clr_int
-;
-: TX.PWR0 \ SEt to 0dBm output and 250kbps
-     $0 bit5 >high bit2 >high bit1 >high $06 nRF!1
-;
-: n>str <# #s #>  \ ( n1 --- a1 n2 )
-;
+   CLR_INT
+   ;
+
+: TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
+   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
+   ;
+
+: n>str  ( n1 --- a1 n2 )  <# #s #> ;
+
 : n>buff ( a1 n1 --- ) \ store n1 as a string at offset n1 in mybuff
-   n>str \ a1 a2 n2 
-   rot mybuff + 
-   swap
-   cmove
-;   
-: Ping1
+   n>str \ a1 a2 n2
+   ROT mybuff +
+   SWAP
+   CMOVE
+   ;
+
+: Ping1  ( -- )
    (TX)
    TX.PWR0
    $HW
    Setup_B
-   150 0 do
+   150 0 DO
       20 I n>buff
-      payload.tx
+      PAYLOAD.TX
       @retries
-      dup 
-      27 swap n>buff
+      DUP
+      27 SWAP n>buff
       FlashLed
-      100 0 do 10ms loop
-   loop
-;
-' ping1 'Boot !  
+      100 0 DO 10ms LOOP
+   LOOP
+   ;
+
+' Ping1 'Boot !
 RAM
