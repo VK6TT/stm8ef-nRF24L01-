@@ -1,0 +1,55 @@
+\ provide code compatibility for plain serial terminals (e.g. picocom)
+NVM
+
+\ ignore e4thcom source directives : #include [COMPILE] \ ; IMMEDIATE
+: #require [COMPILE] \ ; IMMEDIATE
+: \res     [COMPILE] \ ; IMMEDIATE
+
+\ essential immediate words
+: PERSIST NVM 'BOOT DUP $12 DUP ROT + SWAP CMOVE RAM ;
+: ]B! ROT 0= 1 AND SWAP 2* $10 + + $72 C, C, , ] ; IMMEDIATE
+: ]C! $35 C, SWAP C, , ] ; IMMEDIATE
+
+\ bit value definitions (otherwise available with \res export)
+$01 CONSTANT BIT0
+$02 CONSTANT BIT1
+$04 CONSTANT BIT2
+$08 CONSTANT BIT3
+$10 CONSTANT BIT4
+$20 CONSTANT BIT5
+$40 CONSTANT BIT6
+$80 CONSTANT BIT7
+
+\ STM8 port register addresses
+$5005 CONSTANT PB_ODR
+$5007 CONSTANT PB_DDR
+$5008 CONSTANT PB_CR1
+$5009 CONSTANT PB_CR2
+
+$500A CONSTANT PC_ODR
+$500B CONSTANT PC_IDR
+$500C CONSTANT PC_DDR
+$500D CONSTANT PC_CR1
+$500E CONSTANT PC_CR2
+
+$500F CONSTANT PD_ODR
+$5010 CONSTANT PD_IDR
+$5011 CONSTANT PD_DDR
+$5012 CONSTANT PD_CR1
+$5013 CONSTANT PD_CR2
+
+\ STM8S SPI register addresses
+$5200 CONSTANT SPI_CR1
+$5201 CONSTANT SPI_CR2
+$5204 CONSTANT SPI_DR
+$5203 CONSTANT SPI_SR
+
+\ Configuration
+
+3  CONSTANT _CSN \ pin _CSN on nRF24L01 connected to port D3
+2  CONSTANT _CE  \ pin _CE on nRF24L01 connected to port D2
+
+32 CONSTANT P0_WIDTH                 \ bytes in a payload. 1-32 bytes
+   VARIABLE mybuff P0_WIDTH ALLOT
+
+RAM PERSIST COLD
