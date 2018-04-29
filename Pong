@@ -40,13 +40,12 @@ NVM
    ;
 
 : TESTRX  ( -- )
-   (RX) \ now acting as a RX
+   (RX)  \  now acting as a RX
    _CE.LOW
    TX.PWR0
-   _CE.HIGH
+   _CE.HD
    BEGIN
-      RX_DR?
-      IF
+      RX_DR? IF
          PAYLOAD.RX
          MYBUFF P0_WIDTH TYPE CR
       THEN

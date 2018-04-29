@@ -79,29 +79,25 @@ $A0 CONSTANT W_TX_PAYLOAD
    [ $60                PC_CR2 ]C!  \ set as fast mode outputs
    ;
 
-: _CE.LOW ( -- )
-   [ 0 PD_ODR _CE ]B! D30us
+: _CE.LOW  ( -- )
+   [ 0 PD_ODR _CE ]B!
    ;
 
-: _CE.High ( -- )
-   [ 1 PD_ODR _CE ]B! D30us
+: _CSN.LOW  ( -- )
+   [ 0 PD_ODR _CSN ]B!
    ;
 
-: _CSN.LOW ( -- )
-   [ 0 PD_ODR _CSN ]B! D30us
-   ;
-
-: _CSN.High ( -- )
-   [ 1 PD_ODR _CSN ]B! D30us
+: _CSN.High  ( -- )
+   [ 1 PD_ODR _CSN ]B!
    ;
 
 \ talk to nRF24L01+ ***************************************
 
-: (nrf@!) ( c1 ---- )
+: (nrf@!)  ( c1 ---- )
    _CE.LOW _CSN.LOW SPI  DROP
    ;
 
-: nRF@n ( c2 c1 --- cN..C1 ) \ read c2 bytes
+: nRF@n  ( c2 c1 --- cN..C1 )  \ read c2 bytes
    (nrf@!)
    0 DO
       -1 SPI
@@ -109,25 +105,26 @@ $A0 CONSTANT W_TX_PAYLOAD
    _CSN.High
    ;
 
-: nRF@1 ( c1 --- c2 ) \ fetch the contents of register c1
+: nRF@1  ( c1 --- c2 )  \ fetch the contents of register c1
    1 SWAP nRF@n
    ;
 
 \ Config register operations
-: nRF!_  ( c1 A1 --- c1 ) \ factored starting seq
+
+: nRF!_  ( c1 A1 --- c1 )  \ factored starting seq
    $20 OR
    (nrf@!) \ calling word must set _CSN high when finished sending data
    ;
 
-: nRF!0 ( c1 --- ) \ send command c1
+: nRF!0  ( c1 --- )  \ send command c1
    nRF!_
-   D30us    \ TODO: won't work without a delay here - why?
+   \ DUP DROP
+   \ D30us    \ TODO: won't work without a delay here - why?
    _CSN.High
    ;
 
-: nRF!n ( cn....c1 a1 n --- ) \ write to nRF24 register A1 n bytes
-   SWAP
-   nRF!_ \ sends address to write to
+: nRF!n  ( cn....c1 a1 n --- )  \ write to nRF24 register A1 n bytes
+   SWAP nRF!_ \ sends address to write to
    0 DO
       SPI DROP
    LOOP
