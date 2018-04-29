@@ -1,75 +1,31 @@
-RAM
-#require WIPE
-
-NVM
-
-\ nrf24L01+ registers and commands
-$07 constant R.STATUS
-$0A constant R.RX_ADDR_P0
-$10 constant R.TX_ADDR
-$11 constant R.RX_PW_P0
-$61 constant R_RX_PAYLOAD
-$A0 constant W_TX_PAYLOAD
-
-32 CONSTANT P0_WIDTH                 \ bytes in a payload. 1-32 bytes
-   VARIABLE mybuff P0_WIDTH ALLOT
-
-WIPE
+\ temporary dependencies
 
 #require ]B!
 #require ]C!
 
 \ definitions *********************************************
 
+\res MCU: STM8S103
+\res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
+\res export SPI_CR1 SPI_CR2 SPI_DR SPI_SR
+\res export PC_ODR PC_DDR PC_CR1 PC_CR2
+\res export PD_ODR PD_DDR PD_CR1 PD_CR2
+
 \ nrf24L01+ registers and commands
-$00 constant R.CONFIG
-$E1 constant FLUSH_TX
-$E2 constant FLUSH_RX
-
-
-\ pins used
-
-3 constant _CSN \ pin _CSN on nRF24L01 connected to port D3
-2 constant _CE  \ pin _CE on nRF24L01 connected to port D2
-7 constant MISO \ C7
-6 constant MOSI \ c6
-5 constant _SCK \ c5
-4 constant _IRQ \ pin _IRQ on nRF24L01 connected to port C4
-
-\ constants for ports
-$500A constant PC_ODR
-$500B constant PC_IDR
-$500C constant PC_DDR
-$500D constant PC_CR1
-$500E constant PC_CR2
-$500F constant PD_ODR
-$5010 constant PD_IDR
-$5011 constant PD_DDR
-$5012 constant PD_CR1
-$5013 constant PD_CR2
-
-\ SPI registers
-$5200 constant SPI_CR1
-$5201 constant SPI_CR2
-$5204 constant SPI_DR
-$5203 constant SPI_SR
-
-\ Bits
-\ the datasheet uses the notation that Bit 1 is 0b00000010
-\ I normally think of bit1 being 0b00000001
-\ so I define Bit1 to Bit8 to avoid having to remember the
-\ datasheet representation
-\ Confused? Clearly I am.
-$1 constant  Bit0
-$2 constant  Bit1
-$4 constant  Bit2
-$8 constant  Bit3
-$10 constant  Bit4
-$20 constant  Bit5
-$40 constant  Bit6
-$80 constant  Bit7
+$00 CONSTANT R.CONFIG
+$E1 CONSTANT FLUSH_TX
+$E2 CONSTANT FLUSH_RX
 
 NVM
+
+\ nrf24L01+ registers and commands
+$07 CONSTANT R.STATUS
+$0A CONSTANT R.RX_ADDR_P0
+$10 CONSTANT R.TX_ADDR
+$11 CONSTANT R.RX_PW_P0
+$61 CONSTANT R_RX_PAYLOAD
+$A0 CONSTANT W_TX_PAYLOAD
+
 \ SPI Setup and Commands***********************************
 
 \ Init and enable SPI
@@ -83,38 +39,41 @@ NVM
 \ 00111100  = $3C
 
 : SPIon ( -- )
-  [ $0C SPI_CR1 ]C!  \ works for me with 4MHz SPI clock
-  [ $03 SPI_CR2 ]C!  \ no NSS, FD, no CRC, software slave, master
-  [ $4C SPI_CR1 ]C!  \ enable SPI
-;
+   [ $0C SPI_CR1 ]C!  \ works for me with 4MHz SPI clock
+   [ $03 SPI_CR2 ]C!  \ no NSS, FD, no CRC, software slave, master
+   [ $4C SPI_CR1 ]C!  \ enable SPI
+   ;
 
 : SPI ( c -- c )
-  [
-    $E601 ,                 \ LD   A,(1,X)
-    $C7 C,  SPI_DR ,        \ LD   SPI_DR,A
-    $7201 , SPI_SR , $FB C, \ BTJF SPI_SR,#SPIRXNE_WAIT (0)
-    $C6 C,  SPI_DR ,        \ LD   A,SPI_DR
-    $E701 ,                 \ LD   (1,X),A
-    $7F C, ]                \ CLR  (X)
-;
+   [  $E601 ,                 \ LD   A,(1,X)
+      $C7 C,  SPI_DR ,        \ LD   SPI_DR,A
+      $7201 , SPI_SR , $FB C, \ BTJF SPI_SR,#SPIRXNE_WAIT (0)
+      $C6 C,  SPI_DR ,        \ LD   A,SPI_DR
+      $E701 ,                 \ LD   (1,X),A
+      $7F C, ]                \ CLR  (X)
+   ;
 
 \ timing **************************************************
-
 \ delays seem close enough
-: D30us 11 FOR ( 2.5us per empty LOOP ) NEXT ;
-: D130us D30us D30us D30us D30us ;
-: 2ms  14 FOR D130us NEXT ;
-: 10ms  5 0 DO 2ms LOOP ;
+
+: D30us ( -- )  11 FOR ( 2.5us per empty LOOP ) NEXT ;
+
+: D130us ( -- ) D30us D30us D30us D30us ;
+
+: 2ms  ( -- )  14 FOR D130us NEXT ;
+
+: 10ms ( -- )  5 0 DO 2ms LOOP ;
+
 
 \ bit and variable manipulation ***************************
 
 : >LOW ( c1 bitn ---- c2 ) \ set bitn low
    NOT AND
-;
+   ;
 
 : >HIGH ( c1 bitn ---- c2 ) \ set bitn high
    OR
-;
+   ;
 
 : setup_pins ( -- )
    \ Port C inputs are floating, no interrupts enabled
@@ -124,29 +83,29 @@ NVM
    [ $60 ( 0b01100000 ) PC_DDR ]C!  \ port C outputs
    [ $60                PC_CR1 ]C!  \ set as push pull outputs
    [ $60                PC_CR2 ]C!  \ set as fast mode outputs
-;
+   ;
 
 : _CE.LOW ( -- )
-  [ 0 PD_ODR _CE ]B! D30us
-;
+   [ 0 PD_ODR _CE ]B! D30us
+   ;
 
 : _CE.High ( -- )
-  [ 1 PD_ODR _CE ]B! D30us
-;
+   [ 1 PD_ODR _CE ]B! D30us
+   ;
 
 : _CSN.LOW ( -- )
-  [ 0 PD_ODR _CSN ]B! D30us
-;
+   [ 0 PD_ODR _CSN ]B! D30us
+   ;
 
 : _CSN.High ( -- )
-  [ 1 PD_ODR _CSN ]B! D30us
-;
+   [ 1 PD_ODR _CSN ]B! D30us
+   ;
 
 \ talk to nRF24L01+ ***************************************
 
 : (nrf@!) ( c1 ---- )
-  _CE.LOW _CSN.LOW SPI  DROP
-;
+   _CE.LOW _CSN.LOW SPI  DROP
+   ;
 
 : nRF@n ( c2 c1 --- cN..C1 ) \ read c2 bytes
    (nrf@!)
@@ -154,131 +113,138 @@ NVM
       -1 SPI
    LOOP
    _CSN.High
-;
+   ;
 
 : nRF@1 ( c1 --- c2 ) \ fetch the contents of register c1
-    1 SWAP nRF@n
-;
+   1 SWAP nRF@n
+   ;
 
 \ Config register operations
 : nRF!_  ( c1 A1 --- c1 ) \ factored starting seq
    $20 OR
    (nrf@!) \ calling word must set _CSN high when finished sending data
-;
+   ;
 
 : nRF!0 ( c1 --- ) \ send command c1
    nRF!_
    D30us    \ TODO: won't work without a delay here - why?
    _CSN.High
-;
+   ;
 
-: nRF!n ( Cn....C1 A1 n --- ) \ write to nRF24 register A1 n bytes
+: nRF!n ( cn....c1 a1 n --- ) \ write to nRF24 register A1 n bytes
    SWAP
    nRF!_ \ sends address to write to
    0 DO
       SPI DROP
    LOOP
    _CSN.high
-;
+   ;
 
-: nRF!1
-  1 nRF!n
-;
+: nRF!1  ( c a -- )
+   1 nRF!n
+   ;
 
-: nRF!5
-  5 nRF!n
-;
+: nRF!5  ( c5....c1 a -- )
+   5 nRF!n
+   ;
 
-: IRQ@AND  ( c1 ---- f1 ) \ Get Interrupts then AND with C1
-   R.STATUS _csn.low SPI _csn.high AND \ cant use nRF@1 since it toggles _CE
-;
+: IRQ@AND  ( c1 ---- f1 )
+   \ Get Interrupts then AND with c1
+   R.STATUS _CSN.LOW SPI _CSN.HIGH AND   \ cant use nRF@1 since it toggles _CE
+   ;
 
-: TEST_INT ( c1 --- f1 )
-   DUP bit4 AND if ." Max retries cleared" cr -1 ELSE 0 THEN ( --- c1 f1 )
-   OVER Bit5 AND if ." Tx data sent" cr -1 ELSE 0 THEN OR
-   SWAP Bit6 AND if ." Rx data ready" cr -1 ELSE 0 THEN OR
-;
+: TEST_INT  ( c1 --- f1 )
+   DUP BIT4 AND IF ." Max retries cleared" CR -1 ELSE 0 THEN ( --- c1 f1 )
+   OVER BIT5 AND IF ." Tx data sent" CR -1 ELSE 0 THEN OR
+   SWAP BIT6 AND IF ." Rx data ready" CR -1 ELSE 0 THEN OR
+   ;
 
-: CLR_INT
+: CLR_INT  ( -- )
    R.STATUS nRF@1
    TEST_INT IF
      $70  R.STATUS nRF!1 \ 0b01110000
    THEN
-;
+   ;
 
-: RX_DR? Bit6 IRQ@AND ;
-: TX_DS? Bit5 IRQ@AND ;
-: MAX_RT? Bit4 IRQ@AND ;
-: RX_P_NO $0E IRQ@AND ; \ 0b00001110
-: TX_Full? bit0 IRQ@AND ;
+: RX_DR?  ( -- f )  BIT6 IRQ@AND ;
+
+: TX_DS?  ( -- f )  BIT5 IRQ@AND ;
+
+: MAX_RT?  ( -- f )  BIT4 IRQ@AND ;
+
+: RX_P_NO  ( -- c )  $0E IRQ@AND ; \ 0b00001110
+
+: TX_Full?  ( -- f )  BIT0 IRQ@AND ;
 
 \ lets setup nrf24L01+ how we want ************************
-: SetAddress \ LSB first
-   $E7 $D6 $C5 $B4 $A3 R.RX_ADDR_P0 nRF!5
-   $E7 $D6 $C5 $B4 $A3 R.TX_ADDR nRF!5
-;
 
-: SetPL_width \ bytes in rx payload
-   P0_width R.RX_PW_P0 nRF!1
-;
+: SetAddress  ( -- )  \ LSB first
+   $E7 $D6 $C5 $B4 $A3 R.RX_ADDR_P0  nRF!5
+   $E7 $D6 $C5 $B4 $A3 R.TX_ADDR     nRF!5
+   ;
 
-: R@Config  ( --- c1 ) \ fetch config reg
-   R.CONFIG nRF@1
-;
+: SetPL_width  ( c -- )  \ bytes in rx payload
+   P0_WIDTH R.RX_PW_P0  nRF!1
+   ;
 
-: R!Config ( c1 ----- ) \ write C1 to config reg
-   R.CONFIG nRF!1
-;
+: R@Config  ( -- c1 )  \ fetch config reg
+   R.CONFIG  nRF@1
+   ;
 
-: TX.PWR-18 ( -- )
-  \ SEt to -18dBm output and 250kbps
-   $0 bit5 >HIGH $06 nRF!1
-;
+: R!Config  ( c1 -- )  \ write C1 to config reg
+   R.CONFIG  nRF!1
+   ;
 
-: SetRetry \ use 750us retransmit delay, 15 retries
-  $8F $04 nRF!1 ;
-: myChannel  $70 5 nRF!1 ;
+: TX.PWR-18  ( -- )
+   \ SEt to -18dBm output and 250kbps
+   [ $0 BIT5 >HIGH ] LITERAL $06  nRF!1
+   ;
 
-: >Standby1
-  \ enter Standby state
-  _ce.low R@CONFIG   bit1 >HIGH R!CONFIG   2ms
-;
+: SetRetry  ( -- )  \ use 750us retransmit delay, 15 retries
+   $8F $04  nRF!1
+   ;
 
-: PWR.Dn ( -- )
-  _ce.low R@Config   bit1 >LOW R!CONFIG
-;
+: myChannel  ( -- )  $70 5 nRF!1 ;
 
-: FlushRx ( -- )
-  $E2 nRF!0
-;
+: >Standby1  ( -- )  \ enter Standby state
+   _CE.LOW R@CONFIG  BIT1 >HIGH R!CONFIG  2ms
+   ;
 
-: FlushTx ( -- )
-  $E1 nRF!0
-;
+: PWR.Dn  ( -- )
+   _CE.LOW R@Config  BIT1 >LOW R!CONFIG
+   ;
 
-: _CE.HD ( -- )
-  \ set CE high and pause
-  _ce.high D130us
-;
+: FlushRx  ( -- )
+   $E2 nRF!0
+   ;
 
-: Set.RX ( -- )
-  \ set as a receiver
-   R@Config bit0 >HIGH  R!CONFIG
-;
+: FlushTx  ( -- )
+   $E1 nRF!0
+   ;
 
-: Set.TX ( -- )
-  \ set as a transmitter
-   R@Config bit0 >LOW  R!CONFIG
-;
+: _CE.HD  ( -- )
+   \ set CE high and pause
+   _CE.HIGH D130us
+   ;
 
-: nRF24Init ( -- )
+: Set.RX  ( -- )
+   \ set as a receiver
+   R@Config BIT0 >HIGH  R!CONFIG
+   ;
+
+: Set.TX  ( -- )
+   \ set as a transmitter
+   R@Config BIT0 >LOW  R!CONFIG
+   ;
+
+: nRF24Init  ( -- )
    \ stuff we must do after a reset or power on
    setup_pins \ set up pins and SPI (RST)
-   SPIOn _CSN.high _CE.HD
-   9 FOR 10ms NEXT \ spec is 100ms
+   SPIOn _CSN.HIGH _CE.HD
+   9 FOR 10ms NEXT  \ spec is 100ms
    >Standby1
    SetAddress
-   SetPL_width     \ effectively enables Pipe0
+   SetPL_width      \ effectively enables Pipe0
    TX.PWR-18
    FlushRx
    FlushTx
@@ -286,18 +252,20 @@ NVM
    SetRetry
    myChannel
    ." Device reset" cr
-;
+   ;
 
 : (RX)
    nRF24Init   \ setup and go to standby1
    Set.RX      \ Will be a RX
    _CE.HD      \ Enter RX mode
-;
+   ;
 
 : (TX)
    nRF24Init   \ setup and go to standby1
    Set.TX      \ enter TX mode
    \ when is this required? >STANDBY1
-;
+   ;
+
 : .Ver ." 103" ;
+
 RAM
