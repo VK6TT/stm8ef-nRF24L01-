@@ -54,28 +54,22 @@ $A0 CONSTANT W_TX_PAYLOAD
    ;
 
 \ timing **************************************************
-\ delays seem close enough
 
-: D30us ( -- )  11 FOR ( 2.5us per empty LOOP ) NEXT ;
+: *10us  ( n -- )  2* 2* FOR  ( 2.5us per empty LOOP )  NEXT ;
 
-: D130us ( -- ) D30us D30us D30us D30us ;
-
-: 2ms  ( -- )  14 FOR D130us NEXT ;
-
-: 10ms ( -- )  5 0 DO 2ms LOOP ;
-
+: ms  ( n -- )  FOR 100 *10us NEXT ;
 
 \ bit and variable manipulation ***************************
 
-: >LOW ( c1 bitn ---- c2 ) \ set bitn low
+: >LOW  ( c1 bitn ---- c2 )  \ set bitn low
    NOT AND
    ;
 
-: >HIGH ( c1 bitn ---- c2 ) \ set bitn high
+: >HIGH  ( c1 bitn ---- c2 )  \ set bitn high
    OR
    ;
 
-: setup_pins ( -- )
+: setup_pins  ( -- )
    \ Port C inputs are floating, no interrupts enabled
    [ $0C ( 0b00001100 ) PD_DDR ]C!  \ Port D outputs
    [ $0C                PD_CR1 ]C!  \ set up as push pull outputs
@@ -207,7 +201,7 @@ $A0 CONSTANT W_TX_PAYLOAD
 : myChannel  ( -- )  $70 5 nRF!1 ;
 
 : >Standby1  ( -- )  \ enter Standby state
-   _CE.LOW R@CONFIG  BIT1 >HIGH R!CONFIG  2ms
+   _CE.LOW R@CONFIG  BIT1 >HIGH R!CONFIG  2 ms
    ;
 
 : PWR.Dn  ( -- )

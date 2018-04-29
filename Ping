@@ -34,10 +34,8 @@ NVM
 : FlashLed  ( -- )
    16 SWAP - 0
    DO
-      LED.ON
-      10ms
-      LED.Off
-      10ms 10ms 10ms 10ms
+      LED.ON   10 ms
+      LED.Off  40 ms
    LOOP
    ;
 
@@ -47,13 +45,12 @@ NVM
    P0_WIDTH 0 DO  \ Loading tx buffer
       I mybuff + C@
       SPI DROP
-   LOOP        \ tx n bytes from mybuff
+   LOOP     \ tx n bytes from mybuff
    _CSN.High
    _CE.HD   \ 10us minimum, using 130uS
    _CE.LOW
-   10ms  10ms        \ allow time for packet to be sent and processed.
-   10ms  10ms        \ Timing depends on what Rx is doing with payload
-   CLR_INT
+   40 ms    \ allow time for packet to be sent and processed.
+   CLR_INT  \ Timing depends on what Rx is doing with payload
    ;
 
 : TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
@@ -74,15 +71,14 @@ NVM
    TX.PWR0
    $HW
    Setup_B
-   0
-   BEGIN
+   0 BEGIN
       1+ 20 OVER n>buff
       PAYLOAD.TX
       @retries
       DUP
       27 SWAP n>buff
       FlashLed
-      100 0 DO 10ms LOOP
+      1000 ms
       ?RX  \ input on serial line
       IF 32 = ELSE 0 THEN  \ only if it is a space char do we exit
    UNTIL

@@ -17,7 +17,7 @@ NVM
 
 : LED.Off  ( -- )  [ 1 PB_ODR _LED ]B! ;
 
-: FlashLed  ( -- )  LED.ON 2ms LED.Off ;
+: FlashLed  ( -- )  LED.ON   2 ms   LED.Off ;
 
 : TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
@@ -57,13 +57,7 @@ NVM
 
 : Pong  ( -- )  \ on power up flash led so we know device is a pong
    Setup_B
-   Led.On 10ms
-   Led.Off
-   50 0
-   DO
-      10ms
-   LOOP
-   FlashLed
+   FlashLed   500 ms   FlashLed
    TESTRX
    ;
 
