@@ -94,7 +94,7 @@ $A0 CONSTANT W_TX_PAYLOAD
 \ talk to nRF24L01+ ***************************************
 
 : (nrf@!)  ( c1 ---- )
-   _CE.LOW _CSN.LOW SPI  DROP
+   _CSN.LOW SPI  DROP
    ;
 
 : nRF@n  ( c2 c1 --- cN..C1 )  \ read c2 bytes
@@ -118,9 +118,7 @@ $A0 CONSTANT W_TX_PAYLOAD
 
 : nRF!0  ( c1 --- )  \ send command c1
    nRF!_
-   \ DUP DROP
-   \ D30us    \ TODO: won't work without a delay here - why?
-   _CSN.High
+   _CSN.HIGH
    ;
 
 : nRF!n  ( cn....c1 a1 n --- )  \ write to nRF24 register A1 n bytes
@@ -128,7 +126,7 @@ $A0 CONSTANT W_TX_PAYLOAD
    0 DO
       SPI DROP
    LOOP
-   _CSN.high
+   _CSN.HIGH
    ;
 
 : nRF!1  ( c a -- )
@@ -198,11 +196,14 @@ $A0 CONSTANT W_TX_PAYLOAD
 : myChannel  ( -- )  $70 5 nRF!1 ;
 
 : >Standby1  ( -- )  \ enter Standby state
-   _CE.LOW R@CONFIG  BIT1 >HIGH R!CONFIG  2 ms
+   _CE.LOW   2 ms
+   R@CONFIG
+   [ BIT1 ( PWR_UP ) BIT2 ( CRC0 ) OR ] LITERAL >HIGH
+   R!CONFIG
    ;
 
 : PWR.Dn  ( -- )
-   _CE.LOW R@Config  BIT1 >LOW R!CONFIG
+   _CE.LOW R@Config  BIT1 >LOW R!Config
    ;
 
 : FlushRx  ( -- )
@@ -229,7 +230,7 @@ $A0 CONSTANT W_TX_PAYLOAD
 
 : nRF24Init  ( -- )  \ stuff we must do after a reset or power on
    setup_pins    \ set up pins and SPI (RST)
-   _CSN.HIGH _CE.HD SPIOn
+   _CSN.HIGH SPIOn
    100 ms        \ delay after power-on reset (spec fig. 3)
    >Standby1
    SetAddress
@@ -244,7 +245,6 @@ $A0 CONSTANT W_TX_PAYLOAD
 : (RX)  ( -- )  \ setup as primary receiver
    nRF24Init   \ setup and go to Standby1
    Set.RX      \ Will be a RX
-   _CE.HD      \ Enter RX mode
    ;
 
 : (TX)  ( -- )  \ setup as primary transmitter
