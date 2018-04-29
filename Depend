@@ -1,7 +1,8 @@
 \ provide code compatibility for plain serial terminals (e.g. picocom)
 NVM
 
-\ ignore e4thcom source directives : #include [COMPILE] \ ; IMMEDIATE
+\ ignore e4thcom source directives
+: #include [COMPILE] \ ; IMMEDIATE
 : #require [COMPILE] \ ; IMMEDIATE
 : \res     [COMPILE] \ ; IMMEDIATE
 
