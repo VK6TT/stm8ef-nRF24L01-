@@ -3,7 +3,9 @@
 
 \res MCU: STM8S103
 \res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
-\res export PB_ODR PB_DDR PB_CR1 PB_CR2NVM
+\res export PB_ODR PB_DDR PB_CR1 PB_CR2
+
+#require ]B!
 
 NVM
 
@@ -72,15 +74,19 @@ NVM
    TX.PWR0
    $HW
    Setup_B
-   150 0 DO
-      20 I n>buff
+   0
+   BEGIN
+      1+ 20 OVER n>buff
       PAYLOAD.TX
       @retries
       DUP
       27 SWAP n>buff
       FlashLed
       100 0 DO 10ms LOOP
-   LOOP
+      ?RX  \ input on serial line
+      IF 32 = ELSE 0 THEN  \ only if it is a space char do we exit
+   UNTIL
+   DROP
    ;
 
 ' Ping1 'Boot !
