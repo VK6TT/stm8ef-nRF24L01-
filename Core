@@ -38,13 +38,13 @@ $A0 CONSTANT W_TX_PAYLOAD
 \        0  First clock transition is when data is read
 \ 00111100  = $3C
 
-: SPIon ( -- )
+: SPIon  ( -- )
    [ $0C SPI_CR1 ]C!  \ works for me with 4MHz SPI clock
    [ $03 SPI_CR2 ]C!  \ no NSS, FD, no CRC, software slave, master
    [ $4C SPI_CR1 ]C!  \ enable SPI
    ;
 
-: SPI ( c -- c )
+: SPI  ( c -- c )
    [  $E601 ,                 \ LD   A,(1,X)
       $C7 C,  SPI_DR ,        \ LD   SPI_DR,A
       $7201 , SPI_SR , $FB C, \ BTJF SPI_SR,#SPIRXNE_WAIT (0)
@@ -54,28 +54,22 @@ $A0 CONSTANT W_TX_PAYLOAD
    ;
 
 \ timing **************************************************
-\ delays seem close enough
 
-: D30us ( -- )  11 FOR ( 2.5us per empty LOOP ) NEXT ;
+: *10us  ( n -- )  2* 2* FOR  ( 2.5us per empty LOOP )  NEXT ;
 
-: D130us ( -- ) D30us D30us D30us D30us ;
-
-: 2ms  ( -- )  14 FOR D130us NEXT ;
-
-: 10ms ( -- )  5 0 DO 2ms LOOP ;
-
+: ms  ( n -- )  FOR 100 *10us NEXT ;
 
 \ bit and variable manipulation ***************************
 
-: >LOW ( c1 bitn ---- c2 ) \ set bitn low
+: >LOW  ( c1 bitn ---- c2 )  \ set bitn low
    NOT AND
    ;
 
-: >HIGH ( c1 bitn ---- c2 ) \ set bitn high
+: >HIGH  ( c1 bitn ---- c2 )  \ set bitn high
    OR
    ;
 
-: setup_pins ( -- )
+: setup_pins  ( -- )
    \ Port C inputs are floating, no interrupts enabled
    [ $0C ( 0b00001100 ) PD_DDR ]C!  \ Port D outputs
    [ $0C                PD_CR1 ]C!  \ set up as push pull outputs
@@ -85,29 +79,25 @@ $A0 CONSTANT W_TX_PAYLOAD
    [ $60                PC_CR2 ]C!  \ set as fast mode outputs
    ;
 
-: _CE.LOW ( -- )
-   [ 0 PD_ODR _CE ]B! D30us
+: _CE.LOW  ( -- )
+   [ 0 PD_ODR _CE ]B!
    ;
 
-: _CE.High ( -- )
-   [ 1 PD_ODR _CE ]B! D30us
+: _CSN.LOW  ( -- )
+   [ 0 PD_ODR _CSN ]B!
    ;
 
-: _CSN.LOW ( -- )
-   [ 0 PD_ODR _CSN ]B! D30us
-   ;
-
-: _CSN.High ( -- )
-   [ 1 PD_ODR _CSN ]B! D30us
+: _CSN.High  ( -- )
+   [ 1 PD_ODR _CSN ]B!
    ;
 
 \ talk to nRF24L01+ ***************************************
 
-: (nrf@!) ( c1 ---- )
+: (nrf@!)  ( c1 ---- )
    _CE.LOW _CSN.LOW SPI  DROP
    ;
 
-: nRF@n ( c2 c1 --- cN..C1 ) \ read c2 bytes
+: nRF@n  ( c2 c1 --- cN..C1 )  \ read c2 bytes
    (nrf@!)
    0 DO
       -1 SPI
@@ -115,25 +105,26 @@ $A0 CONSTANT W_TX_PAYLOAD
    _CSN.High
    ;
 
-: nRF@1 ( c1 --- c2 ) \ fetch the contents of register c1
+: nRF@1  ( c1 --- c2 )  \ fetch the contents of register c1
    1 SWAP nRF@n
    ;
 
 \ Config register operations
-: nRF!_  ( c1 A1 --- c1 ) \ factored starting seq
+
+: nRF!_  ( c1 A1 --- c1 )  \ factored starting seq
    $20 OR
    (nrf@!) \ calling word must set _CSN high when finished sending data
    ;
 
-: nRF!0 ( c1 --- ) \ send command c1
+: nRF!0  ( c1 --- )  \ send command c1
    nRF!_
-   D30us    \ TODO: won't work without a delay here - why?
+   \ DUP DROP
+   \ D30us    \ TODO: won't work without a delay here - why?
    _CSN.High
    ;
 
-: nRF!n ( cn....c1 a1 n --- ) \ write to nRF24 register A1 n bytes
-   SWAP
-   nRF!_ \ sends address to write to
+: nRF!n  ( cn....c1 a1 n --- )  \ write to nRF24 register A1 n bytes
+   SWAP nRF!_ \ sends address to write to
    0 DO
       SPI DROP
    LOOP
@@ -176,6 +167,7 @@ $A0 CONSTANT W_TX_PAYLOAD
 
 : TX_Full?  ( -- f )  BIT0 IRQ@AND ;
 
+
 \ lets setup nrf24L01+ how we want ************************
 
 : SetAddress  ( -- )  \ LSB first
@@ -195,8 +187,7 @@ $A0 CONSTANT W_TX_PAYLOAD
    R.CONFIG  nRF!1
    ;
 
-: TX.PWR-18  ( -- )
-   \ SEt to -18dBm output and 250kbps
+: TX.PWR-18  ( -- )  \ SEt to -18dBm output and 250kbps
    [ $0 BIT5 >HIGH ] LITERAL $06  nRF!1
    ;
 
@@ -207,7 +198,7 @@ $A0 CONSTANT W_TX_PAYLOAD
 : myChannel  ( -- )  $70 5 nRF!1 ;
 
 : >Standby1  ( -- )  \ enter Standby state
-   _CE.LOW R@CONFIG  BIT1 >HIGH R!CONFIG  2ms
+   _CE.LOW R@CONFIG  BIT1 >HIGH R!CONFIG  2 ms
    ;
 
 : PWR.Dn  ( -- )
@@ -224,48 +215,43 @@ $A0 CONSTANT W_TX_PAYLOAD
 
 : _CE.HD  ( -- )
    \ set CE high and pause
-   _CE.HIGH D130us
+   [ 1 PD_ODR _CE ]B!   13 *10us
    ;
 
 : Set.RX  ( -- )
    \ set as a receiver
-   R@Config BIT0 >HIGH  R!CONFIG
+   R@Config BIT0 >HIGH   R!CONFIG
    ;
 
-: Set.TX  ( -- )
-   \ set as a transmitter
+: Set.TX  ( -- )  \  set as a transmitter
    R@Config BIT0 >LOW  R!CONFIG
    ;
 
-: nRF24Init  ( -- )
-   \ stuff we must do after a reset or power on
-   setup_pins \ set up pins and SPI (RST)
-   SPIOn _CSN.HIGH _CE.HD
-   9 FOR 10ms NEXT  \ spec is 100ms
+: nRF24Init  ( -- )  \ stuff we must do after a reset or power on
+   setup_pins    \ set up pins and SPI (RST)
+   _CSN.HIGH _CE.HD SPIOn
+   100 ms        \ delay after power-on reset (spec fig. 3)
    >Standby1
    SetAddress
-   SetPL_width      \ effectively enables Pipe0
+   SetPL_width   \ effectively enables Pipe0
    TX.PWR-18
-   FlushRx
-   FlushTx
-   CLR_INT
+   FlushRx FlushTx CLR_INT
    SetRetry
    myChannel
    ." Device reset" cr
    ;
 
-: (RX)
-   nRF24Init   \ setup and go to standby1
+: (RX)  ( -- )  \ setup as primary receiver
+   nRF24Init   \ setup and go to Standby1
    Set.RX      \ Will be a RX
    _CE.HD      \ Enter RX mode
    ;
 
-: (TX)
-   nRF24Init   \ setup and go to standby1
+: (TX)  ( -- )  \ setup as primary transmitter
+   nRF24Init   \ setup and go to Standby1
    Set.TX      \ enter TX mode
-   \ when is this required? >STANDBY1
    ;
 
-: .Ver ." 103" ;
+: .Ver  ( -- )  ."  103" ;
 
 RAM
