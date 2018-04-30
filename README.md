@@ -2,7 +2,7 @@
 
 # A barebones nRF24L01+ library for STM8 barebones breakout board
 
-Thomas, TG9541, has done a great job correcting the SPI libraries for the stm8ef. At present I am using high level words for the SPI but this is a temporary measure.
+Thomas, TG9541, has done a great job correcting the SPI libraries for the stm8ef. The high level words for the SPI have been replaced with assembley versions.
 
 The nRF24L01 registers are 8 bits. Two words nRF@ and nRF! will be used to fetch an 8 bit register and store it back as needed. I simply use pipe 0 ignoring the other pipes. After successfuly swapping data with the default settings I modified them just to see what can be done.
 
