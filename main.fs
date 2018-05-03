@@ -1,7 +1,7 @@
 #require WIPE
 NVM
 32 CONSTANT P0_WIDTH                 \ bytes in a payload. 1-32 bytes
-   VARIABLE mybuff P0_WIDTH 2- ALLOT
+   VARIABLE mybuff P0_WIDTH 1- ALLOT
 WIPE
 
 3 CONSTANT _CSN \ pin _CSN on nRF24L01 connected to port D3
