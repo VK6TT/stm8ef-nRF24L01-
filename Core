@@ -55,9 +55,17 @@ $A0 CONSTANT W_TX_PAYLOAD
 
 \ timing **************************************************
 
-: *10us  ( n -- )  2* 2* FOR  ( 2.5us per empty LOOP )  NEXT ;
+: *10us  ( n -- )  \  delay n * 10us
+   1- FOR [
+      $A62B ,    \      LD    A,#42
+      $4A  C,    \ 1$:  DEC   A
+      $26FD ,    \      JRNE  1$
+   ] NEXT
+   ;
 
-: ms  ( n -- )  FOR 100 *10us NEXT ;
+: ms  ( n -- )  \  delay n ms
+   1- FOR 100 *10us NEXT
+   ;
 
 \ bit and variable manipulation ***************************
 
