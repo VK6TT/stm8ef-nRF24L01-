@@ -13,6 +13,11 @@
 
 \ nrf24L01+ registers and commands
 $00 CONSTANT R.CONFIG
+$04 CONSTANT R.SETUP_RETR
+$05 CONSTANT R.RF_CH
+$06 CONSTANT R.RF_SETUP
+$1C CONSTANT R.DYNPD
+$1D CONSTANT R.FEATURE
 $E1 CONSTANT FLUSH_TX
 $E2 CONSTANT FLUSH_RX
 
@@ -181,8 +186,8 @@ $A0 CONSTANT W_TX_PAYLOAD
    $E7 $D6 $C5 $B4 $A3 R.TX_ADDR     nRF!5
    ;
 
-: SetPL_width  ( c -- )  \ bytes in rx payload
-   P0_WIDTH R.RX_PW_P0  nRF!1
+: SetPL_width  ( c -- )  \ set bytes in rx payload
+   R.RX_PW_P0  nRF!1
    ;
 
 : R@Config  ( -- c1 )  \ fetch config reg
@@ -194,14 +199,16 @@ $A0 CONSTANT W_TX_PAYLOAD
    ;
 
 : TX.PWR-18  ( -- )  \ SEt to -18dBm output and 250kbps
-   [ $0 BIT5 >HIGH ] LITERAL $06  nRF!1
+   [ $0 BIT5 >HIGH ] LITERAL R.RF_SETUP nRF!1
    ;
 
-: SetRetry  ( -- )  \ use 750us retransmit delay, 15 retries
-   $8F $04  nRF!1
+: SetRetry  ( -- )  \ ARD: retransmit delay, ARC: retries
+   ( ARD: 8*250us, ARC: 15* ) $8F R.SETUP_RETR nRF!1
    ;
 
-: myChannel  ( -- )  $70 5 nRF!1 ;
+: myChannel  ( -- ) \ set channel (fix, for now)
+  $70 R.RF_CH nRF!1
+  ;
 
 : >Standby1  ( -- )  \ enter Standby state
    _CE.LOW   2 ms
@@ -242,7 +249,6 @@ $A0 CONSTANT W_TX_PAYLOAD
    100 ms        \ delay after power-on reset (spec fig. 3)
    >Standby1
    SetAddress
-   SetPL_width   \ effectively enables Pipe0
    TX.PWR-18
    FlushRx FlushTx CLR_INT
    SetRetry
@@ -251,13 +257,14 @@ $A0 CONSTANT W_TX_PAYLOAD
    ;
 
 : (RX)  ( -- )  \ setup as primary receiver
-   nRF24Init   \ setup and go to Standby1
-   Set.RX      \ Will be a RX
+   nRF24Init      \ setup and go to Standby1
+   P0_WIDTH SetPL_width   \ effectively enables Pipe0
+   Set.RX         \ Will be a RX
    ;
 
 : (TX)  ( -- )  \ setup as primary transmitter
-   nRF24Init   \ setup and go to Standby1
-   Set.TX      \ enter TX mode
+   nRF24Init      \ setup and go to Standby1
+   Set.TX         \ enter TX mode
    ;
 
 : .Ver  ( -- )  ."  103" ;
