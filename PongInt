@@ -13,7 +13,27 @@
 
 5 CONSTANT _LED   \ Led connected to port B, Pin 5
 
+$1C CONSTANT R.DYNPD
+$1D CONSTANT R.FEATURE
+
 NVM
+
+: b>nRF ( a n r -- s )  \  copy n chars from a to reg. r
+   _CSN.LOW ( a n r ) $20 OR SPI ( a n s ) >R
+   0 DO
+      DUP C@ SPI DROP 1+
+   LOOP _CSN.HIGH
+   ( a ) DROP R> ( s )
+   ;
+
+: nRF>b ( b c r -- s )  \  copy count c bytes from reg. r to buffer b
+   \  return nRF24 STATUS s
+   _CSN.LOW ( a n r ) SPI ( a n s ) >R
+   0 DO
+      0 SPI OVER C! 1+
+   LOOP  _CSN.HIGH
+   ( a ) DROP R> ( s )
+   ;
 
 : Setup_B  ( -- )
    [ 1 PB_DDR 5 ]B!  \ Port B outputs
@@ -26,18 +46,8 @@ NVM
 
 : FlashLed  ( -- )  LED.ON   2 ms   LED.Off ;
 
-: TX.PWR0  ( -- )  \ Set to 250kbps and 0dBm (SI24R1: +7dBm) output 
+: TX.PWR0  ( -- )  \ Set to 250kbps and 0dBm (SI24R1: +7dBm) output
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH BIT0 >HIGH ] LITERAL $06 nRF!1
-   ;
-
-: nRF>b ( b c r -- s )  
-   \  copy count c bytes from reg. r to buffer b
-   \  return nRF24 STATUS s
-   _CSN.LOW ( a n r ) SPI ( a n s ) >R 
-   0 DO
-      -1 SPI OVER C! 1+
-   LOOP  _CSN.HIGH
-   ( a ) DROP R> ( s )
    ;
 
 VARIABLE STATUS  \ nRF24 STATUS from IRQ
@@ -54,24 +64,32 @@ VARIABLE STATUS  \ nRF24 STATUS from IRQ
 HERE ]      \ headerless code (keep xt on stack)
    SAVEC
    LED.On    \ signal: interrupt has been serviced
-   MYBUFF P0_WIDTH R_RX_PAYLOAD nrf>b STATUS !
+   RXBUFF P0_WIDTH R_RX_PAYLOAD nrf>b STATUS !
    $70 R.STATUS nRF!1
+   RXBUFF 20 + 4 W_TX_PAYLOAD b>nRF DROP  \  payload (transmit counter)
    IRET
 [ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
 
+: SetAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
+   ( DPL_P0 )     $01 R.DYNPD   nRF!1
+   ( EN_ACK_PAY ) $02 R.FEATURE nRF!1  \  see footnote ^d
+   ;
+
 : Pong  ( -- )
-   \  Pong until space char on serial console  
+   \  Pong until space char on serial console
    Setup_B
    FlashLed  \ on power up flash led so we know device is a pong
    500 ms FlashLed
    (RX)      \ now acting as a RX in standby state
+
    TX.PWR0   \ nRF all set
+   SetAckPayload
    IRQ_INIT  \ get ready
    _CE.HD    \ Enter RX state
    BEGIN
       STATUS @ IF
          \ print buffer and nRF STATUS from  receive int
-         MYBUFF P0_WIDTH TYPE STATUS ? CR
+         RXBUFF P0_WIDTH TYPE STATUS ? CR
          0 STATUS !
          LED.Off  \ signal: message has been consumed
       THEN

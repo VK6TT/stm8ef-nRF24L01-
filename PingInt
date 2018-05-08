@@ -1,0 +1,140 @@
+\ changed $HW to erase buffer with spaces so that the count and
+\ retries saved into mybuff typed correctly at RX end
+
+\res MCU: STM8S103
+\res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
+\res export PB_ODR PB_DDR PB_CR1 PB_CR2
+\res export PC_ODR PC_IDR PC_DDR PC_CR1 PC_CR2
+\res export EXTI_CR1 INT_EXTI2
+
+\ helper word: create BSET/BRES instructions
+#require ]B!
+
+5 CONSTANT _LED   \ Led connected to port B, Pin 5
+
+$1C CONSTANT R.DYNPD
+$1D CONSTANT R.FEATURE
+
+NVM
+
+: b>nRF ( a n r -- s )  \  copy n chars from a to reg. r
+   _CSN.LOW ( a n r ) $20 OR SPI ( a n s ) >R
+   0 DO
+      DUP C@ SPI DROP 1+
+   LOOP _CSN.HIGH
+   ( a ) DROP R> ( s )
+   ;
+
+: nRF>b ( b c r -- s ) \  copy count c bytes from reg. r to buffer b
+   \  return nRF24 STATUS s
+   _CSN.LOW ( a n r ) SPI ( a n s ) >R
+   0 DO
+      -1 SPI OVER C! 1+
+   LOOP  _CSN.HIGH
+   ( a ) DROP R> ( s )
+   ;
+
+: $HW  ( -- )
+   mybuff P0_width $20 FILL \ erase buffer
+   $" Hello World" COUNT  ( --- a1 n1 )
+   mybuff SWAP CMOVE
+   ;
+
+: Setup_DebLED  ( -- )  \  Pin debugging and LED
+   [ 1 PB_DDR _LED ]B! \ PB5 output
+   [ 1 PB_CR1 _LED ]B! \ set up as low-side output (PB.5 is "open drain")
+   [ 1 PC_DDR 3 ]B! \ PC3 output
+   [ 1 PC_CR1 3 ]B! \ set up as push pull outputs
+;
+
+: LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
+: LED.Off  ( -- ) [ 1 PB_ODR _LED ]B! ;
+
+: DEB.On ( -- ) [ 1 PC_ODR 3 ]B! ;
+: DEB.Off ( -- ) [ 0 PC_ODR 3 ]B! ;
+
+: @retries  ( --- n1 )
+   $08 nRF@1   \ get count of lost packets:retries
+   $0F AND     \ mask off lost packets
+;
+
+: PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
+   mybuff P0_WIDTH W_TX_PAYLOAD b>nRF DROP
+   _CE.HD _CE.LOW  \  10us minimum, using 130uS
+   ;
+
+: TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
+   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
+   ;
+
+: n>str  ( n1 --- a1 n2 )  <# #S #> ;
+
+: n>buff ( a1 n1 --- ) \ store n1 as a string at offset n1 in mybuff
+   n>str \ a1 a2 n2
+   ROT mybuff +
+   SWAP
+   CMOVE
+   ;
+
+VARIABLE STATUS  \ nRF24 STATUS from IRQ
+
+: IRQ_INIT ( -- )  \  enable nRF24 IRQ interrupt of PC.4
+   [ 0 PC_DDR 4 ]B!
+   [ 0 PC_CR1 4 ]B!
+   [ 1 PC_CR2 4 ]B!    \  enable interrupt of PC.4
+   [ 1 EXTI_CR1 5 ]B!  \  PC falling edge interrupt
+   0 STATUS !
+   ;
+
+\ interrupt service routine
+HERE ]       \ headerless code (keep xt on stack)
+   SAVEC
+   R.STATUS nRF@1 ( s )
+   DUP   STATUS @ OR STATUS ! ( s )
+   DUP   BIT4 AND IF
+      FlushTx \ FlushRx
+   THEN
+   DUP   BIT5 AND IF
+      DEB.On  \  Tx data sent
+   THEN
+   ( s ) BIT6 AND IF
+      LED.On  \  Rx data ready
+      RXBUFF 4 R_RX_PAYLOAD nrf>b DROP
+   THEN
+   $70 R.STATUS nRF!1
+   IRET
+[ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
+
+: SetAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
+   ( DPL_P0 )     $01 R.DYNPD   nRF!1
+   ( EN_ACK_PAY ) $02 R.FEATURE nRF!1  \  see footnote ^d
+   4 SetPL_width
+   ;
+
+: Ping1  ( -- )
+   $HW
+   (TX) TX.PWR0
+   SetAckPayload
+   IRQ_INIT
+   Setup_DebLED
+   0 BEGIN
+      1+ 20 OVER n>buff
+      PAYLOAD.TX
+      @retries   DUP 27 SWAP n>buff  DROP
+      100 ms
+
+      STATUS @ DUP . SPACE
+      RXBUFF 4 TYPE SPACE
+      TEST_INT DROP
+      0 STATUS !
+      LED.Off DEB.Off
+
+      900 ms
+      ?RX  \ input on serial line
+      IF 32 = ELSE 0 THEN  \ only if it is a space char do we exit
+   UNTIL
+   DROP
+   ;
+
+' Ping1 'Boot !
+RAM
