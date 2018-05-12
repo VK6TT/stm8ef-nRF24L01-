@@ -17,23 +17,6 @@ $1D CONSTANT R.FEATURE
 
 NVM
 
-: b>nRF ( a n r -- s )  \  copy n chars from a to reg. r
-   _CSN.LOW ( a n r ) $20 OR SPI ( a n s ) >R
-   0 DO
-      DUP C@ SPI DROP 1+
-   LOOP _CSN.HIGH
-   ( a ) DROP R> ( s )
-   ;
-
-: nRF>b ( b c r -- s ) \  copy count c bytes from reg. r to buffer b
-   \  return nRF24 STATUS s
-   _CSN.LOW ( a n r ) SPI ( a n s ) >R
-   0 DO
-      -1 SPI OVER C! 1+
-   LOOP  _CSN.HIGH
-   ( a ) DROP R> ( s )
-   ;
-
 : $HW  ( -- )
    mybuff P0_width $20 FILL \ erase buffer
    $" Hello World" COUNT  ( --- a1 n1 )
@@ -57,11 +40,6 @@ NVM
    $08 nRF@1   \ get count of lost packets:retries
    $0F AND     \ mask off lost packets
 ;
-
-: PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
-   mybuff P0_WIDTH W_TX_PAYLOAD b>nRF DROP
-   _CE.HD _CE.LOW  \  10us minimum, using 130uS
-   ;
 
 : TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
