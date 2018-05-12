@@ -23,12 +23,12 @@ NVM
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
    ;
 
-: PAYLOAD.RX  ( -- n1 n2 ... nn )  \ returns n bytes as set by P0_width
+: PAYLOAD.RX  ( -- )  \ stores n bytes as set by P0_width in MYBUFF
    BEGIN
       RX_DR?  \ wait until data is ready
    UNTIL
    \  >STANDBY1 ( this is optional )
-   MYBUFF P0_WIDTH nrf>b STATUS !
+   MYBUFF P0_WIDTH nrf>b DROP
    _CSN.HIGH
    BIT6 R.STATUS nRF!1
    CLR_INT
