@@ -284,7 +284,8 @@ $A8 CONSTANT W_ACK_PAYLOAD
    LOOP  _CSN.HIGH
    ( -- a ) DROP R> ( -- s )
    ;
-: b>tx ( b c -- s ) \  copy c bytes from buffer b to TX payload and send, return STATUS
+: b>tx ( b c -- s ) 
+    \  copy c bytes from buffer b to TX payload and send, return STATUS
     W_TX_PAYLOAD b>nRF
    _CE.HD _CE.LOW  \  10us minimum, using 130uS
 ;
