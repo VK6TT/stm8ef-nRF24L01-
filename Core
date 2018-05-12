@@ -267,6 +267,26 @@ $A0 CONSTANT W_TX_PAYLOAD
    Set.TX         \ enter TX mode
    ;
 
-: .Ver  ( -- )  ."  103" ;
+: b>nRF ( a n -- s )  \  copy n chars from a to payload register on nRF24
+   _CSN.LOW ( a n ) W_TX_PAYLOAD $20 OR SPI ( a n s ) >R
+   0 DO
+      DUP C@ SPI DROP 1+
+   LOOP _CSN.HIGH
+   ( a ) DROP R> ( s )
+   ;
+
+: nRF>b ( b c -- s ) \  copy count c bytes from payload register on nRF24 to buffer b
+   \  return nRF24 STATUS s
+   _CSN.LOW ( a n ) R_RX_PAYLOAD SPI ( a n s ) >R
+   0 DO
+      -1 SPI OVER C! 1+
+   LOOP  _CSN.HIGH
+   ( a ) DROP R> ( s )
+   ;
+: PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
+   mybuff P0_WIDTH b>nRF DROP
+   _CE.HD _CE.LOW  \  10us minimum, using 130uS
+   ;
+
 
 RAM
