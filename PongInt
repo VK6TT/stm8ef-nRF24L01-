@@ -18,23 +18,6 @@ $1D CONSTANT R.FEATURE
 
 NVM
 
-: b>nRF ( a n r -- s )  \  copy n chars from a to reg. r
-   _CSN.LOW ( a n r ) $20 OR SPI ( a n s ) >R
-   0 DO
-      DUP C@ SPI DROP 1+
-   LOOP _CSN.HIGH
-   ( a ) DROP R> ( s )
-   ;
-
-: nRF>b ( b c r -- s )  \  copy count c bytes from reg. r to buffer b
-   \  return nRF24 STATUS s
-   _CSN.LOW ( a n r ) SPI ( a n s ) >R
-   0 DO
-      0 SPI OVER C! 1+
-   LOOP  _CSN.HIGH
-   ( a ) DROP R> ( s )
-   ;
-
 : Setup_B  ( -- )
    [ 1 PB_DDR 5 ]B!  \ Port B outputs
    [ 1 PB_CR1 5 ]B!  \ set up as push pull outputs
