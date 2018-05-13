@@ -276,7 +276,8 @@ $A8 CONSTANT W_ACK_PAYLOAD
    ( a -- ) DROP R> ( -- s )
    ;
 
-: nRF>b ( b c CMD -- s ) \  copy count c bytes from payload register on nRF24 to buffer b
+: nRF>b ( b c CMD -- s ) 
+   \  copy count c bytes from payload register on nRF24 to buffer b
    \  return nRF24 STATUS s
    _CSN.LOW SPI ( a n s -- ) >R
    0 DO
