@@ -39,20 +39,6 @@ NVM
    LOOP
    ;
 
-: PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
-   $A0 (NRF@!) \ Send Loading tx buffer, drop status reply
-   P0_WIDTH 0 DO  \ Loading tx buffer
-      I mybuff + C@
-      SPI DROP
-   LOOP     \ tx n bytes from mybuff
-   _CSN.High
-
-   _CE.HD   \ 10us minimum, using 130uS
-   _CE.LOW
-   40 ms    \ allow time for packet to be sent and processed.
-   CLR_INT  \ Timing depends on what Rx is doing with payload
-   ;
-
 : TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
    ;

@@ -30,6 +30,7 @@ $10 CONSTANT R.TX_ADDR
 $11 CONSTANT R.RX_PW_P0
 $61 CONSTANT R_RX_PAYLOAD
 $A0 CONSTANT W_TX_PAYLOAD
+$A8 CONSTANT W_ACK_PAYLOAD
 
 \ SPI Setup and Commands***********************************
 
@@ -267,6 +268,38 @@ $A0 CONSTANT W_TX_PAYLOAD
    Set.TX         \ enter TX mode
    ;
 
-: .Ver  ( -- )  ."  103" ;
+: b>nRF ( a n CMD -- s )  \  copy n chars from a to payload register on nRF24
+   _CSN.LOW SPI ( a n -- s ) >R
+   0 DO
+      DUP C@ SPI DROP 1+
+   LOOP _CSN.HIGH
+   ( a -- ) DROP R> ( -- s )
+   ;
+
+: nRF>b ( b c CMD -- s ) 
+   \  copy count c bytes from payload register on nRF24 to buffer b
+   \  return nRF24 STATUS s
+   _CSN.LOW SPI ( a n s -- ) >R
+   0 DO
+      -1 SPI OVER C! 1+
+   LOOP  _CSN.HIGH
+   ( -- a ) DROP R> ( -- s )
+   ;
+: b>tx ( b c -- s ) 
+    \  copy c bytes from buffer b to TX payload and send, return STATUS
+    W_TX_PAYLOAD b>nRF
+   _CE.HD _CE.LOW  \  10us minimum, using 130uS
+;
+: b>ack ( b c p -- s )
+    \  copy c bytes payload from buffer b to p ACK pipe p, return STATUS
+    W_ACK_PAYLOAD OR b>nrf
+;
+: rx>b ( b c -- s )
+    \  copy c bytes payload to buffer b, return STATUS
+    R_RX_PAYLOAD nrf>b
+    ;
+: PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
+   mybuff P0_WIDTH b>tx DROP
+   ;
 
 RAM
