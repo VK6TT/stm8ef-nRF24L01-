@@ -113,10 +113,11 @@ HERE ]       \ headerless code (keep xt on stack)
       @retries   DUP 27 SWAP n>buff  DROP
       100 ms
 
-      STATUS @ DUP . SPACE
-      RXBUFF 4 TYPE SPACE
-      TEST_INT DROP
-      0 STATUS !
+      STATUS @ 0 STATUS !
+      DUP BIT4 AND IF ." Max retries cleared" CR THEN
+      DUP BIT5 AND IF ." Tx data sent" CR THEN
+      DUP BIT6 AND IF ." Rx data ready" CR THEN
+      ( s ) . SPACE RXBUFF 4 TYPE SPACE
       LED.Off DEB.Off
 
       900 ms
