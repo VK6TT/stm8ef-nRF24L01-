@@ -11,6 +11,10 @@ NVM
 : ]B! ROT 0= 1 AND SWAP 2* $10 + + $72 C, C, , ] ; IMMEDIATE
 : ]C! $35 C, SWAP C, , ] ; IMMEDIATE
 
+32 CONSTANT P0_WIDTH                 \ bytes in a payload. 1-32 bytes
+   VARIABLE MYBUFF P0_WIDTH 1- ALLOT
+   VARIABLE RXBUFF P0_WIDTH 1- ALLOT
+
 \ bit value definitions (otherwise available with \res export)
 $01 CONSTANT BIT0
 $02 CONSTANT BIT1
@@ -39,21 +43,81 @@ $5011 CONSTANT PD_DDR
 $5012 CONSTANT PD_CR1
 $5013 CONSTANT PD_CR2
 
+$50A0 CONSTANT EXTI_CR1
+
 \ STM8S SPI register addresses
 $5200 CONSTANT SPI_CR1
 $5201 CONSTANT SPI_CR2
 $5204 CONSTANT SPI_DR
 $5203 CONSTANT SPI_SR
 
-\ Configuration
+\ PC ext. interrupt vector
+$801E CONSTANT INT_EXTI2
+
+\ nRF24L01+ registers
+$00 CONSTANT R.CONFIG
+$04 CONSTANT R.SETUP_RETR
+$05 CONSTANT R.RF_CH
+$06 CONSTANT R.RF_SETUP
+$07 CONSTANT R.STATUS
+$0A CONSTANT R.RX_ADDR_P0
+$10 CONSTANT R.TX_ADDR
+$11 CONSTANT R.RX_PW_P0
+
+\ nRF24L01+ commands
+$61 CONSTANT R_RX_PAYLOAD
+$A0 CONSTANT W_TX_PAYLOAD
+$A8 CONSTANT W_ACK_PAYLOAD
+$E1 CONSTANT FLUSH_TX
+$E2 CONSTANT FLUSH_RX
+
+
+\ delay routines **************************************************
+
+: *10us  ( n -- )  \  delay n * 10us
+   1- FOR [
+      $A62B ,    \      LD    A,#42
+      $4A  C,    \ 1$:  DEC   A
+      $26FD ,    \      JRNE  1$
+   ] NEXT
+   ;
+
+: ms  ( n -- )  \  delay n ms
+   1- FOR 100 *10us NEXT
+   ;
+
+\ nRF24L01 GPIO onfiguration  *************************************
 
 3  CONSTANT _CSN \ pin _CSN on nRF24L01 connected to port D3
 2  CONSTANT _CE  \ pin _CE on nRF24L01 connected to port D2
 
-32 CONSTANT P0_WIDTH                 \ bytes in a payload. 1-32 bytes
-   VARIABLE mybuff P0_WIDTH ALLOT
+: setup_pins  ( -- )
+   \ Port C inputs are floating, no interrupts enabled
+   [ $0C ( 0b00001100 ) PD_DDR ]C!  \ Port D outputs
+   [ $0C                PD_CR1 ]C!  \ set up as push pull outputs
+   [ $0C                PD_CR2 ]C!  \ fast mode outputs
+   [ $60 ( 0b01100000 ) PC_DDR ]C!  \ port C outputs
+   [ $60                PC_CR1 ]C!  \ set as push pull outputs
+   [ $60                PC_CR2 ]C!  \ set as fast mode outputs
+   ;
 
-\ SPI Setup and Commands***********************************
+: _CE.LOW  ( -- )
+   [ 0 PD_ODR _CE ]B!
+   ;
+
+: _CE.HIGH  ( -- )
+   [ 1 PD_ODR _CE ]B!
+   ;
+
+: _CSN.LOW  ( -- )
+   [ 0 PD_ODR _CSN ]B!
+   ;
+
+: _CSN.High  ( -- )
+   [ 1 PD_ODR _CSN ]B!
+   ;
+
+\ SPI Setup and Commands ******************************************
 
 \ Init and enable SPI
 \ 76543210
@@ -68,18 +132,18 @@ $5203 CONSTANT SPI_SR
 
 \ Init and enable SPI
 : SPIon ( baud -- )
-  [
-    $5C C,              \  INCW    X         ; pull baud
-    $F6 C,              \  LD      A,(X)
-    $5C C,              \  INCW    X
-    $A407 ,             \  AND     A,#7      ; CPOL=CPHA=0
-    $4E C,              \  SWAP    A         ; 16 *
-    $47 C,              \  SRA     A         ; 2 /
-    $AA04 ,             \  OR      A,#4      ; set master mode
-    $C7 C, SPI_CR1 , ]  \  LD      SPI_CR1,A
-  [ $01 SPI_CR2 ]C!     \ no NSS, FD, no CRC
-  [ 1 SPI_CR1 6 ]B!    \ SPI enable
-;
+   [
+     $5C C,              \  INCW    X         ; pull baud
+     $F6 C,              \  LD      A,(X)
+     $5C C,              \  INCW    X
+     $A407 ,             \  AND     A,#7      ; CPOL=CPHA=0
+     $4E C,              \  SWAP    A         ; 16 *
+     $47 C,              \  SRA     A         ; 2 /
+     $AA04 ,             \  OR      A,#4      ; set master mode
+     $C7 C, SPI_CR1 , ]  \  LD      SPI_CR1,A
+   [ $01 SPI_CR2 ]C!     \ no NSS, FD, no CRC
+   [ 1 SPI_CR1 6 ]B!    \ SPI enable
+   ;
 
 : SPI  ( c -- c )
    [  $E601 ,                 \ LD   A,(1,X)
