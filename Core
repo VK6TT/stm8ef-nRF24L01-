@@ -95,16 +95,16 @@ NVM
    R.CONFIG  nRF!1
    ;
 
-: TX.PWR-18  ( -- )  \ SEt to -18dBm output and 250kbps
-   [ $0 BIT5 >HIGH ] LITERAL R.RF_SETUP nRF!1
+: RfSetup  ( c -- )  \  BIT5 -> set -18dBm outp. / 250kbps
+   R.RF_SETUP nRF!1
    ;
 
 : SetRetry  ( -- )  \ ARD: retransmit delay, ARC: retries
    ( ARD: 8*250us, ARC: 15* ) $8F R.SETUP_RETR nRF!1
    ;
 
-: myChannel  ( -- ) \ set channel (fix, for now)
-   $70 R.RF_CH nRF!1
+: SetRF_CH  ( -- ) \ set channel
+   R.RF_CH nRF!1
    ;
 
 : >Standby1  ( -- )  \ enter Standby state
@@ -148,23 +148,6 @@ NVM
    _CSN.HIGH 1 SPIon
    100 ms        \ delay after power-on reset (spec fig. 3)
    FlushRx FlushTx ClrInt
-   >Standby1
-   SetAddress
-   TX.PWR-18
-   SetRetry
-   myChannel
-   ." Device reset" cr
-   ;
-
-: (RX)  ( -- )  \ setup as primary receiver
-   nRF24Init      \ setup and go to Standby1
-   P0_WIDTH SetPL_width   \ effectively enables Pipe0
-   Set.RX         \ Will be a RX
-   ;
-
-: (TX)  ( -- )  \ setup as primary transmitter
-   nRF24Init      \ setup and go to Standby1
-   Set.TX         \ enter TX mode
    ;
 
 : b>nRF ( a n CMD -- s )  \  copy n chars from a to payload register on nRF24
