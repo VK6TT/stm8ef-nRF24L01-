@@ -31,7 +31,7 @@ NVM
 : FlashLed  ( -- )  LED.ON   2 ms   LED.Off ;
 
 : TX.PWR0  ( -- )  \ Set to 250kbps and 0dBm (SI24R1: +7dBm) output
-   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH BIT0 >HIGH ] LITERAL $06 nRF!1
+   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH BIT0 >HIGH ] LITERAL RfSetup
    ;
 
 : InitAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
@@ -60,7 +60,20 @@ HERE ]      \ headerless code (keep xt on stack)
    RXBUFF P0_WIDTH rx>b STATUS !
    $70 R.STATUS nRF!1
    IRET
-[ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
+   [ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
+
+: (RX)  ( -- )  \ setup as primary receiver
+   nRF24Init      \ setup and go to Standby1
+   >Standby1
+   SetAddress
+   TX.PWR0
+   SetRetry
+   $70 SetRF_CH
+
+   P0_WIDTH SetPL_width   \ effectively enables Pipe0
+   Set.RX         \ Will be a RX
+   ." Device reset" cr
+   ;
 
 : Pong  ( -- )
    \  Pong until space char on serial console
@@ -69,7 +82,6 @@ HERE ]      \ headerless code (keep xt on stack)
    500 ms FlashLed
    (RX)      \ now acting as a RX in standby state
 
-   TX.PWR0   \ nRF all set
    InitAckPayload
    IRQ_INIT  \ get ready
    _CE.HD    \ Enter RX state

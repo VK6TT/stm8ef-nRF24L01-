@@ -29,7 +29,7 @@ NVM
    [ 1 PB_CR1 _LED ]B! \ set up as low-side output (PB.5 is "open drain")
    [ 1 PC_DDR 3 ]B! \ PC3 output
    [ 1 PC_CR1 3 ]B! \ set up as push pull outputs
-;
+   ;
 
 : LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
 : LED.Off  ( -- ) [ 1 PB_ODR _LED ]B! ;
@@ -40,10 +40,10 @@ NVM
 : @retries  ( --- n1 )
    $08 nRF@1   \ get count of lost packets:retries
    $0F AND     \ mask off lost packets
-;
+   ;
 
 : TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
-   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
+   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL RfSetup
    ;
 
 : n>str  ( n1 --- a1 n2 )  <# BL HOLD #S #> ;
@@ -101,9 +101,21 @@ HERE ]       \ headerless code (keep xt on stack)
    _CE.HD _CE.LOW  \  10us minimum, using 130uS
    ;
 
+: (TX)  ( -- )  \ setup as primary transmitter
+   nRF24Init      \ setup and go to Standby1
+   >Standby1
+   SetAddress
+   TX.PWR0
+   SetRetry
+   $70 SetRF_CH
+
+   Set.TX         \ enter TX mode
+   ." Device reset" cr
+   ;
+
 : Ping1  ( -- )
    $HW
-   (TX) TX.PWR0
+   (TX)
    InitAckPayload
    IRQ_INIT
    Setup_DebLED
@@ -113,10 +125,11 @@ HERE ]       \ headerless code (keep xt on stack)
       @retries   DUP 27 SWAP n>buff  DROP
       100 ms
 
-      STATUS @ DUP . SPACE
-      RXBUFF 4 TYPE SPACE
-      TEST_INT DROP
-      0 STATUS !
+      STATUS @ 0 STATUS !
+      DUP BIT4 AND IF ." Max retries cleared" CR THEN
+      DUP BIT5 AND IF ." Tx data sent" CR THEN
+      DUP BIT6 AND IF ." Rx data ready" CR THEN
+      ( s ) . SPACE RXBUFF 4 TYPE SPACE
       LED.Off DEB.Off
 
       900 ms

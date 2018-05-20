@@ -76,35 +76,6 @@ NVM
    5 nRF!n
    ;
 
-: IRQ@AND  ( c1 ---- f1 )
-   \ Get Interrupts then AND with c1
-   R.STATUS _CSN.LOW SPI _CSN.HIGH AND   \ cant use nRF@1 since it toggles _CE
-   ;
-
-: TEST_INT  ( c1 --- f1 )
-   DUP BIT4 AND IF ." Max retries cleared" CR -1 ELSE 0 THEN ( --- c1 f1 )
-   OVER BIT5 AND IF ." Tx data sent" CR -1 ELSE 0 THEN OR
-   SWAP BIT6 AND IF ." Rx data ready" CR -1 ELSE 0 THEN OR
-   ;
-
-: CLR_INT  ( -- )
-   R.STATUS nRF@1
-   TEST_INT IF
-     $70  R.STATUS nRF!1 \ 0b01110000
-   THEN
-   ;
-
-: RX_DR?  ( -- f )  BIT6 IRQ@AND ;
-
-: TX_DS?  ( -- f )  BIT5 IRQ@AND ;
-
-: MAX_RT?  ( -- f )  BIT4 IRQ@AND ;
-
-: RX_P_NO  ( -- c )  $0E IRQ@AND ; \ 0b00001110
-
-: TX_Full?  ( -- f )  BIT0 IRQ@AND ;
-
-
 \ lets setup nrf24L01+ how we want ************************
 
 : SetAddress  ( -- )  \ LSB first
@@ -124,23 +95,22 @@ NVM
    R.CONFIG  nRF!1
    ;
 
-: TX.PWR-18  ( -- )  \ SEt to -18dBm output and 250kbps
-   [ $0 BIT5 >HIGH ] LITERAL R.RF_SETUP nRF!1
+: RfSetup  ( c -- )  \  BIT5 -> set -18dBm outp. / 250kbps
+   R.RF_SETUP nRF!1
    ;
 
 : SetRetry  ( -- )  \ ARD: retransmit delay, ARC: retries
    ( ARD: 8*250us, ARC: 15* ) $8F R.SETUP_RETR nRF!1
    ;
 
-: myChannel  ( -- ) \ set channel (fix, for now)
-  $70 R.RF_CH nRF!1
-  ;
+: SetRF_CH  ( -- ) \ set channel
+   R.RF_CH nRF!1
+   ;
 
 : >Standby1  ( -- )  \ enter Standby state
-   _CE.LOW   2 ms
-   R@CONFIG
-   [ BIT1 ( PWR_UP ) BIT2 ( CRC0 ) OR ] LITERAL >HIGH
-   R!CONFIG
+   _CE.LOW
+   R@CONFIG [ BIT1 ( PWR_UP ) BIT2 ( CRC0 ) OR ] LITERAL >HIGH R!CONFIG
+   2 ms
    ;
 
 : PWR.Dn  ( -- )
@@ -153,6 +123,10 @@ NVM
 
 : FlushTx  ( -- )
    FLUSH_TX nRF!0
+   ;
+
+: ClrInt  ( -- )
+   $70  R.STATUS nRF!1  \ 0b01110000
    ;
 
 : _CE.HD  ( -- )
@@ -173,24 +147,7 @@ NVM
    setup_pins    \ set up pins and SPI (RST)
    _CSN.HIGH 1 SPIon
    100 ms        \ delay after power-on reset (spec fig. 3)
-   >Standby1
-   SetAddress
-   TX.PWR-18
-   FlushRx FlushTx CLR_INT
-   SetRetry
-   myChannel
-   ." Device reset" cr
-   ;
-
-: (RX)  ( -- )  \ setup as primary receiver
-   nRF24Init      \ setup and go to Standby1
-   P0_WIDTH SetPL_width   \ effectively enables Pipe0
-   Set.RX         \ Will be a RX
-   ;
-
-: (TX)  ( -- )  \ setup as primary transmitter
-   nRF24Init      \ setup and go to Standby1
-   Set.TX         \ enter TX mode
+   FlushRx FlushTx ClrInt
    ;
 
 : b>nRF ( a n CMD -- s )  \  copy n chars from a to payload register on nRF24
