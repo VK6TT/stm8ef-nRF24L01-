@@ -5,73 +5,20 @@
 
 \ definitions *********************************************
 
-\res MCU: STM8S103
-\res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
-\res export SPI_CR1 SPI_CR2 SPI_DR SPI_SR
-\res export PC_ODR PC_DDR PC_CR1 PC_CR2
-\res export PD_ODR PD_DDR PD_CR1 PD_CR2
+\res MCU: nRF24L01
 
-\ nrf24L01+ registers and commands
-$00 CONSTANT R.CONFIG
-$04 CONSTANT R.SETUP_RETR
-$05 CONSTANT R.RF_CH
-$06 CONSTANT R.RF_SETUP
-$1C CONSTANT R.DYNPD
-$1D CONSTANT R.FEATURE
-$E1 CONSTANT FLUSH_TX
-$E2 CONSTANT FLUSH_RX
+\ get nRF24L01+ bit masks
+\res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
+
+\ get nRF24L01+ registers
+\res export R.CONFIG R.SETUP_RETR R.RF_CH R.RF_SETUP
+\res export R.STATUS R.RX_ADDR_P0 R.TX_ADDR R.RX_PW_P0
+
+\ get nRF24L01+ commands
+\res export R_RX_PAYLOAD W_TX_PAYLOAD W_ACK_PAYLOAD
+\res export FLUSH_TX FLUSH_RX
 
 NVM
-
-\ nrf24L01+ registers and commands
-$07 CONSTANT R.STATUS
-$0A CONSTANT R.RX_ADDR_P0
-$10 CONSTANT R.TX_ADDR
-$11 CONSTANT R.RX_PW_P0
-$61 CONSTANT R_RX_PAYLOAD
-$A0 CONSTANT W_TX_PAYLOAD
-$A8 CONSTANT W_ACK_PAYLOAD
-
-\ SPI Setup and Commands***********************************
-
-\ Init and enable SPI
-\ 76543210
-\ 0         MSB first
-\  0        SPI disabled
-\   111     Baud rate control 111=fmaster/256
-\      1    STM8 is master
-\       0   SCK to 0 when idle
-\        0  First clock transition is when data is read
-\ 00111100  = $3C
-
-: SPIon  ( -- )
-   [ $0C SPI_CR1 ]C!  \ works for me with 4MHz SPI clock
-   [ $03 SPI_CR2 ]C!  \ no NSS, FD, no CRC, software slave, master
-   [ $4C SPI_CR1 ]C!  \ enable SPI
-   ;
-
-: SPI  ( c -- c )
-   [  $E601 ,                 \ LD   A,(1,X)
-      $C7 C,  SPI_DR ,        \ LD   SPI_DR,A
-      $7201 , SPI_SR , $FB C, \ BTJF SPI_SR,#SPIRXNE_WAIT (0)
-      $C6 C,  SPI_DR ,        \ LD   A,SPI_DR
-      $E701 ,                 \ LD   (1,X),A
-      $7F C, ]                \ CLR  (X)
-   ;
-
-\ timing **************************************************
-
-: *10us  ( n -- )  \  delay n * 10us
-   1- FOR [
-      $A62B ,    \      LD    A,#42
-      $4A  C,    \ 1$:  DEC   A
-      $26FD ,    \      JRNE  1$
-   ] NEXT
-   ;
-
-: ms  ( n -- )  \  delay n ms
-   1- FOR 100 *10us NEXT
-   ;
 
 \ bit and variable manipulation ***************************
 
@@ -81,28 +28,6 @@ $A8 CONSTANT W_ACK_PAYLOAD
 
 : >HIGH  ( c1 bitn ---- c2 )  \ set bitn high
    OR
-   ;
-
-: setup_pins  ( -- )
-   \ Port C inputs are floating, no interrupts enabled
-   [ $0C ( 0b00001100 ) PD_DDR ]C!  \ Port D outputs
-   [ $0C                PD_CR1 ]C!  \ set up as push pull outputs
-   [ $0C                PD_CR2 ]C!  \ fast mode outputs
-   [ $60 ( 0b01100000 ) PC_DDR ]C!  \ port C outputs
-   [ $60                PC_CR1 ]C!  \ set as push pull outputs
-   [ $60                PC_CR2 ]C!  \ set as fast mode outputs
-   ;
-
-: _CE.LOW  ( -- )
-   [ 0 PD_ODR _CE ]B!
-   ;
-
-: _CSN.LOW  ( -- )
-   [ 0 PD_ODR _CSN ]B!
-   ;
-
-: _CSN.High  ( -- )
-   [ 1 PD_ODR _CSN ]B!
    ;
 
 \ talk to nRF24L01+ ***************************************
@@ -223,21 +148,21 @@ $A8 CONSTANT W_ACK_PAYLOAD
    ;
 
 : FlushRx  ( -- )
-   $E2 nRF!0
+   FLUSH_RX nRF!0
    ;
 
 : FlushTx  ( -- )
-   $E1 nRF!0
+   FLUSH_TX nRF!0
    ;
 
 : _CE.HD  ( -- )
    \ set CE high and pause
-   [ 1 PD_ODR _CE ]B!   13 *10us
+   _CE.HIGH   13 *10us
    ;
 
 : Set.RX  ( -- )
    \ set as a receiver
-   R@Config BIT0 >HIGH   R!CONFIG
+   R@Config BIT0 >HIGH  R!CONFIG
    ;
 
 : Set.TX  ( -- )  \  set as a transmitter
@@ -246,7 +171,7 @@ $A8 CONSTANT W_ACK_PAYLOAD
 
 : nRF24Init  ( -- )  \ stuff we must do after a reset or power on
    setup_pins    \ set up pins and SPI (RST)
-   _CSN.HIGH SPIOn
+   _CSN.HIGH 1 SPIon
    100 ms        \ delay after power-on reset (spec fig. 3)
    >Standby1
    SetAddress
@@ -276,7 +201,7 @@ $A8 CONSTANT W_ACK_PAYLOAD
    ( a -- ) DROP R> ( -- s )
    ;
 
-: nRF>b ( b c CMD -- s ) 
+: nRF>b ( b c CMD -- s )
    \  copy count c bytes from payload register on nRF24 to buffer b
    \  return nRF24 STATUS s
    _CSN.LOW SPI ( a n s -- ) >R
@@ -285,21 +210,21 @@ $A8 CONSTANT W_ACK_PAYLOAD
    LOOP  _CSN.HIGH
    ( -- a ) DROP R> ( -- s )
    ;
-: b>tx ( b c -- s ) 
-    \  copy c bytes from buffer b to TX payload and send, return STATUS
-    W_TX_PAYLOAD b>nRF
+
+: b>tx ( b c -- s )
+   \  copy c bytes from buffer b to TX payload and send, return STATUS
+   W_TX_PAYLOAD b>nRF
    _CE.HD _CE.LOW  \  10us minimum, using 130uS
-;
+   ;
+
 : b>ack ( b c p -- s )
-    \  copy c bytes payload from buffer b to p ACK pipe p, return STATUS
-    W_ACK_PAYLOAD OR b>nrf
-;
+   \  copy c bytes payload from buffer b to p ACK pipe p, return STATUS
+   W_ACK_PAYLOAD OR b>nrf
+   ;
+
 : rx>b ( b c -- s )
-    \  copy c bytes payload to buffer b, return STATUS
-    R_RX_PAYLOAD nrf>b
-    ;
-: PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
-   mybuff P0_WIDTH b>tx DROP
+   \  copy c bytes payload to buffer b, return STATUS
+   R_RX_PAYLOAD nrf>b
    ;
 
 RAM
