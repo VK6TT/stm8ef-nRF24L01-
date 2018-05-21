@@ -32,56 +32,26 @@ NVM
 
 \ talk to nRF24L01+ ***************************************
 
-: (nrf@!)  ( c1 ---- )
-   _CSN.LOW SPI  DROP
+: (nrf@!)  ( c1 -- )
+   _CSN.LOW SPI DROP
    ;
 
-: nRF@n  ( c2 c1 --- cN..C1 )  \ read c2 bytes
+: nRF@1  ( c1 -- c2 )  \ fetch the contents of register c1
+   (nrf@!) 0 SPI ( c2 )
+   _CSN.HIGH
+   ;
+
+: nRF!0  ( c1 -- )  \ send command c1
    (nrf@!)
-   0 DO
-      -1 SPI
-   LOOP
-   _CSN.High
-   ;
-
-: nRF@1  ( c1 --- c2 )  \ fetch the contents of register c1
-   1 SWAP nRF@n
-   ;
-
-\ Config register operations
-
-: nRF!_  ( c1 A1 --- c1 )  \ factored starting seq
-   $20 OR
-   (nrf@!) \ calling word must set _CSN high when finished sending data
-   ;
-
-: nRF!0  ( c1 --- )  \ send command c1
-   nRF!_
    _CSN.HIGH
    ;
 
-: nRF!n  ( cn....c1 a1 n --- )  \ write to nRF24 register A1 n bytes
-   SWAP nRF!_ \ sends address to write to
-   0 DO
-      SPI DROP
-   LOOP
+: nRF!1  ( c1 c2 -- )  \ write c1 to register c2
+   ( c2 ) $20 OR (nrf@!) ( c1 ) SPI DROP
    _CSN.HIGH
-   ;
-
-: nRF!1  ( c a -- )
-   1 nRF!n
-   ;
-
-: nRF!5  ( c5....c1 a -- )
-   5 nRF!n
    ;
 
 \ lets setup nrf24L01+ how we want ************************
-
-: SetAddress  ( -- )  \ LSB first
-   $E7 $D6 $C5 $B4 $A3 R.RX_ADDR_P0  nRF!5
-   $E7 $D6 $C5 $B4 $A3 R.TX_ADDR     nRF!5
-   ;
 
 : SetPL_width  ( c -- )  \ set bytes in rx payload
    R.RX_PW_P0  nRF!1
@@ -97,10 +67,6 @@ NVM
 
 : RfSetup  ( c -- )  \  BIT5 -> set -18dBm outp. / 250kbps
    R.RF_SETUP nRF!1
-   ;
-
-: SetRetry  ( -- )  \ ARD: retransmit delay, ARC: retries
-   ( ARD: 8*250us, ARC: 15* ) $8F R.SETUP_RETR nRF!1
    ;
 
 : SetRF_CH  ( -- ) \ set channel
@@ -176,12 +142,18 @@ NVM
 
 : b>ack ( b c p -- s )
    \  copy c bytes payload from buffer b to p ACK pipe p, return STATUS
-   W_ACK_PAYLOAD OR b>nrf
+   W_ACK_PAYLOAD OR b>nRF
    ;
 
 : rx>b ( b c -- s )
    \  copy c bytes payload to buffer b, return STATUS
-   R_RX_PAYLOAD nrf>b
+   R_RX_PAYLOAD nRF>b
+   ;
+
+: b>p0addr ( b c -- )  \  Set pipe0 address (PRX or PTX w/ ACK payload)
+   2DUP
+   [ R.TX_ADDR     $20 OR ] LITERAL b>nRF DROP
+   [ R.RX_ADDR_P0  $20 OR ] LITERAL b>nRF DROP
    ;
 
 RAM

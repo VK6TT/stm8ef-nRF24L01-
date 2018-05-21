@@ -1,5 +1,5 @@
-#require WIPE
 NVM
+#require WIPE
 32 CONSTANT P0_WIDTH                 \ bytes in a payload. 1-32 bytes
    VARIABLE MYBUFF P0_WIDTH 1- ALLOT
    VARIABLE RXBUFF P0_WIDTH 1- ALLOT
@@ -57,16 +57,12 @@ NVM
    [ 0 PD_ODR _CSN ]B!
    ;
 
-: _CSN.High  ( -- )
+: _CSN.HIGH  ( -- )
    [ 1 PD_ODR _CSN ]B!
    ;
 
-#require WIPE
 WIPE
-
 #include Core
 
 #require PERSIST
-PERSIST
-#require WIPE
-WIPE
+PERSIST WIPE
