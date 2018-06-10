@@ -3,7 +3,6 @@
 
 \res MCU: STM8S103
 \res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
-\res export PB_ODR PB_DDR PB_CR1 PB_CR2
 \res export PC_ODR PC_IDR PC_DDR PC_CR1 PC_CR2
 \res export EXTI_CR1 INT_EXTI2
 
@@ -23,18 +22,6 @@ NVM
    mybuff SWAP CMOVE
    ;
 
-: Setup_DebLED  ( -- )  \  Pin debugging and LED
-   [ 1 PB_DDR _LED ]B! \ PB5 output
-   [ 1 PB_CR1 _LED ]B! \ set up as low-side output (PB.5 is "open drain")
-   \  [ 1 PC_DDR 3 ]B! \ PC3 output
-   \  [ 1 PC_CR1 3 ]B! \ set up as push pull outputs
-   ;
-
-: LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
-: LED.Off  ( -- ) [ 1 PB_ODR _LED ]B! ;
-\ : DEB.On ( -- ) [ 1 PC_ODR 3 ]B! ;
-\ : DEB.Off ( -- ) [ 0 PC_ODR 3 ]B! ;
-
 : @retries  ( --- n1 )
    R.OBSERVE_TX nRF@1   \ get count of lost packets:retries
    $0F AND     \ mask off lost packets
@@ -50,14 +37,6 @@ NVM
    ;
 
 VARIABLE STATUS  \ nRF24 STATUS from IRQ
-
-: IrqInit ( -- )  \  enable nRF24 IRQ interrupt of PC.4
-   [ 0 PC_DDR 4 ]B!
-   [ 0 PC_CR1 4 ]B!
-   [ 1 PC_CR2 4 ]B!    \  enable interrupt of PC.4
-   [ 1 EXTI_CR1 5 ]B!  \  PC falling edge interrupt
-   0 STATUS !
-   ;
 
 \ interrupt service routine
 HERE ]       \ headerless code (keep xt on stack)
@@ -103,7 +82,7 @@ HERE $05A3 , $B4C5 , $D6E7 , ( myP0Addr )
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL RfSetup
 
    \ ARD: retransmit delay, ARC: retries
-   ( ARD: 8*250us, ARC: 15* ) $8F R.SETUP_RETR nRF!1
+   [ ( ARD: 250us* ) $80 ( ARC: n* ) 0 + ] LITERAL R.SETUP_RETR nRF!1
 
    $70 SetRF_CH
    >Standby1
@@ -113,8 +92,8 @@ HERE $05A3 , $B4C5 , $D6E7 , ( myP0Addr )
    ;
 
 : Ping1  ( -- )
-   Setup_DebLED
    TxInit
+   0 STATUS !
 
    $HW 0 BEGIN
       1+ 20 OVER n>buff
