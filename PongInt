@@ -13,6 +13,7 @@
 
 5 CONSTANT _LED   \ Led connected to port B, Pin 5
 
+$07 CONSTANT R.STATUS
 $1C CONSTANT R.DYNPD
 $1D CONSTANT R.FEATURE
 
@@ -33,6 +34,15 @@ NVM
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH BIT0 >HIGH ] LITERAL $06 nRF!1
    ;
 
+: InitAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
+   ( DPL_P0 )     $01 R.DYNPD   nRF!1
+   ( EN_ACK_PAY ) $02 R.FEATURE nRF!1  \  see footnote ^d
+   ;
+
+: SetAckPayload  ( -- )  \ copy ACK payload to nRF24
+   RXBUFF 20 + 4 0 ( b c p ) b>ack DROP  \  payload (transmit counter)
+   ;
+
 VARIABLE STATUS  \ nRF24 STATUS from IRQ
 
 : IRQ_INIT ( -- )  \  enable nRF24 IRQ interrupt of PC.4
@@ -47,16 +57,10 @@ VARIABLE STATUS  \ nRF24 STATUS from IRQ
 HERE ]      \ headerless code (keep xt on stack)
    SAVEC
    LED.On    \ signal: interrupt has been serviced
-   RXBUFF P0_WIDTH R_RX_PAYLOAD nrf>b STATUS !
+   RXBUFF P0_WIDTH rx>b STATUS !
    $70 R.STATUS nRF!1
-   RXBUFF 20 + 4 W_TX_PAYLOAD b>nRF DROP  \  payload (transmit counter)
    IRET
 [ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
-
-: SetAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
-   ( DPL_P0 )     $01 R.DYNPD   nRF!1
-   ( EN_ACK_PAY ) $02 R.FEATURE nRF!1  \  see footnote ^d
-   ;
 
 : Pong  ( -- )
    \  Pong until space char on serial console
@@ -66,15 +70,17 @@ HERE ]      \ headerless code (keep xt on stack)
    (RX)      \ now acting as a RX in standby state
 
    TX.PWR0   \ nRF all set
-   SetAckPayload
+   InitAckPayload
    IRQ_INIT  \ get ready
    _CE.HD    \ Enter RX state
+   SetAckPayload  \  dummy data for the first received packet
    BEGIN
       STATUS @ IF
          \ print buffer and nRF STATUS from  receive int
          RXBUFF P0_WIDTH TYPE STATUS ? CR
          0 STATUS !
          LED.Off  \ signal: message has been consumed
+         SetAckPayload  \  in a real application this would be time-synced
       THEN
       ?RX  \ input on serial line
       IF 32 = ELSE 0 THEN  \ only if it is a space char do we exit

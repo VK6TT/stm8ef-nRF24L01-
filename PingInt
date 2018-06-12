@@ -12,6 +12,7 @@
 
 5 CONSTANT _LED   \ Led connected to port B, Pin 5
 
+$07 CONSTANT R.STATUS
 $1C CONSTANT R.DYNPD
 $1D CONSTANT R.FEATURE
 
@@ -45,7 +46,7 @@ NVM
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
    ;
 
-: n>str  ( n1 --- a1 n2 )  <# #S #> ;
+: n>str  ( n1 --- a1 n2 )  <# BL HOLD #S #> ;
 
 : n>buff ( a1 n1 --- ) \ store n1 as a string at offset n1 in mybuff
    n>str \ a1 a2 n2
@@ -64,9 +65,14 @@ VARIABLE STATUS  \ nRF24 STATUS from IRQ
    0 STATUS !
    ;
 
+: R@STATUS ( -- s )
+   _CSN.LOW -1 SPI _CSN.HIGH
+   ;
+
 \ interrupt service routine
 HERE ]       \ headerless code (keep xt on stack)
    SAVEC
+   \ R@STATUS ( s )
    R.STATUS nRF@1 ( s )
    DUP   STATUS @ OR STATUS ! ( s )
    DUP   BIT4 AND IF
@@ -77,22 +83,28 @@ HERE ]       \ headerless code (keep xt on stack)
    THEN
    ( s ) BIT6 AND IF
       LED.On  \  Rx data ready
-      RXBUFF 4 R_RX_PAYLOAD nrf>b DROP
+      \ RXBUFF 4 R_RX_PAYLOAD nrf>b DROP
+      RXBUFF 4 rx>b DROP
    THEN
    $70 R.STATUS nRF!1
    IRET
 [ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
 
-: SetAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
+: InitAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
    ( DPL_P0 )     $01 R.DYNPD   nRF!1
    ( EN_ACK_PAY ) $02 R.FEATURE nRF!1  \  see footnote ^d
    4 SetPL_width
    ;
 
+: PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
+   mybuff P0_WIDTH b>tx DROP
+   _CE.HD _CE.LOW  \  10us minimum, using 130uS
+   ;
+
 : Ping1  ( -- )
    $HW
    (TX) TX.PWR0
-   SetAckPayload
+   InitAckPayload
    IRQ_INIT
    Setup_DebLED
    0 BEGIN
