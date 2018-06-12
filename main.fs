@@ -6,12 +6,11 @@ NVM
 WIPE
 
 \res MCU: STM8S103
-\res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
 \res export SPI_CR1 SPI_CR2 SPI_DR SPI_SR
 \res export PB_ODR PB_DDR PB_CR1
 \res export PC_ODR PC_DDR PC_CR1 PC_CR2
 \res export PD_ODR PD_DDR PD_CR1 PD_CR2
-\res export EXTI_CR1 INT_EXTI2
+\res export EXTI_CR1
 
 #require ]B!
 #require ]C!
@@ -26,15 +25,6 @@ WIPE
 NVM
 
 #require hw/spi.fs
-
- \ : SPIon  ( -- )
- \  [ $0C SPI_CR1 ]C!  \ works for me with 4MHz SPI clock
- \  [ $03 SPI_CR2 ]C!  \ no NSS, FD, no CRC, software slave, master
- \  [ $4C SPI_CR1 ]C!  \ enable SPI
- \  ;
-
-
-
 
 \ timing **************************************************
 
