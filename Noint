@@ -1,0 +1,41 @@
+: IRQ@AND  ( c1 ---- f1 )
+   \ Get Interrupts then AND with c1
+   R.STATUS _CSN.LOW SPI _CSN.HIGH AND  \  TODO: use either nRF@1 or NOP
+   ;
+
+: TEST_INT  ( c1 --- f1 )
+   DUP BIT4 AND IF ." Max retries cleared" CR -1 ELSE 0 THEN ( --- c1 f1 )
+   OVER BIT5 AND IF ." Tx data sent" CR -1 ELSE 0 THEN OR
+   SWAP BIT6 AND IF ." Rx data ready" CR -1 ELSE 0 THEN OR
+   ;
+
+: RX_DR?  ( -- f )  BIT6 IRQ@AND ;
+
+: TX_DS?  ( -- f )  BIT5 IRQ@AND ;
+
+: MAX_RT?  ( -- f )  BIT4 IRQ@AND ;
+
+: RX_P_NO  ( -- c )  $0E IRQ@AND ; \ 0b00001110
+
+: TX_Full?  ( -- f )  BIT0 IRQ@AND ;
+
+: nRF!n  ( cn....c1 a1 n --- )  \ write to nRF24 register A1 n bytes
+   SWAP nRF!_ \ sends address to write to
+   0 DO
+      SPI DROP
+   LOOP
+   _CSN.HIGH
+   ;
+
+: nRF!5  ( c5....c1 a -- )
+   5 nRF!n
+   ;
+
+: SetAddress  ( -- )  \ LSB first
+   $E7 $D6 $C5 $B4 $A3 R.RX_ADDR_P0  nRF!5
+   $E7 $D6 $C5 $B4 $A3 R.TX_ADDR     nRF!5
+   ;
+
+: SetRetry  ( -- )  \ ARD: retransmit delay, ARC: retries
+   ( ARD: 8*250us, ARC: 15* ) $8F R.SETUP_RETR nRF!1
+   ;

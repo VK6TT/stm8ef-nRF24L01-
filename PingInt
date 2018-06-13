@@ -3,18 +3,12 @@
 
 \res MCU: STM8S103
 \res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
-\res export PB_ODR PB_DDR PB_CR1 PB_CR2
-\res export PC_ODR PC_IDR PC_DDR PC_CR1 PC_CR2
-\res export EXTI_CR1 INT_EXTI2
+\res export INT_EXTI2
+
+\res MCU: nRF24L01
+\res export R.SETUP_RETR R.STATUS R.DYNPD R.FEATURE
 
 \ helper word: create BSET/BRES instructions
-#require ]B!
-
-5 CONSTANT _LED   \ Led connected to port B, Pin 5
-
-$07 CONSTANT R.STATUS
-$1C CONSTANT R.DYNPD
-$1D CONSTANT R.FEATURE
 
 NVM
 
@@ -24,26 +18,9 @@ NVM
    mybuff SWAP CMOVE
    ;
 
-: Setup_DebLED  ( -- )  \  Pin debugging and LED
-   [ 1 PB_DDR _LED ]B! \ PB5 output
-   [ 1 PB_CR1 _LED ]B! \ set up as low-side output (PB.5 is "open drain")
-   [ 1 PC_DDR 3 ]B! \ PC3 output
-   [ 1 PC_CR1 3 ]B! \ set up as push pull outputs
-;
-
-: LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
-: LED.Off  ( -- ) [ 1 PB_ODR _LED ]B! ;
-
-: DEB.On ( -- ) [ 1 PC_ODR 3 ]B! ;
-: DEB.Off ( -- ) [ 0 PC_ODR 3 ]B! ;
-
 : @retries  ( --- n1 )
-   $08 nRF@1   \ get count of lost packets:retries
+   R.OBSERVE_TX nRF@1   \ get count of lost packets:retries
    $0F AND     \ mask off lost packets
-;
-
-: TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
-   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
    ;
 
 : n>str  ( n1 --- a1 n2 )  <# BL HOLD #S #> ;
@@ -57,18 +34,6 @@ NVM
 
 VARIABLE STATUS  \ nRF24 STATUS from IRQ
 
-: IRQ_INIT ( -- )  \  enable nRF24 IRQ interrupt of PC.4
-   [ 0 PC_DDR 4 ]B!
-   [ 0 PC_CR1 4 ]B!
-   [ 1 PC_CR2 4 ]B!    \  enable interrupt of PC.4
-   [ 1 EXTI_CR1 5 ]B!  \  PC falling edge interrupt
-   0 STATUS !
-   ;
-
-: R@STATUS ( -- s )
-   _CSN.LOW -1 SPI _CSN.HIGH
-   ;
-
 \ interrupt service routine
 HERE ]       \ headerless code (keep xt on stack)
    SAVEC
@@ -78,9 +43,9 @@ HERE ]       \ headerless code (keep xt on stack)
    DUP   BIT4 AND IF
       FlushTx \ FlushRx
    THEN
-   DUP   BIT5 AND IF
-      DEB.On  \  Tx data sent
-   THEN
+   \ DUP   BIT5 AND IF
+   \    DEB.On  \  Tx data sent
+   \ THEN
    ( s ) BIT6 AND IF
       LED.On  \  Rx data ready
       \ RXBUFF 4 R_RX_PAYLOAD nrf>b DROP
@@ -90,34 +55,54 @@ HERE ]       \ headerless code (keep xt on stack)
    IRET
 [ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
 
-: InitAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
-   ( DPL_P0 )     $01 R.DYNPD   nRF!1
-   ( EN_ACK_PAY ) $02 R.FEATURE nRF!1  \  see footnote ^d
-   4 SetPL_width
-   ;
-
 : PAYLOAD.TX  ( -- )  \ send n bytes as set by P0_width
    mybuff P0_WIDTH b>tx DROP
    _CE.HD _CE.LOW  \  10us minimum, using 130uS
    ;
 
+HERE $05A3 , $B4C5 , $D6E7 , ( myP0Addr )
+
+: TxInit  ( -- )  \ setup as primary transmitter
+   nRF24Init    \ general setup
+   IrqInit     \  enable nRF24 IRQ interrupt of PC.4
+
+   \ set pipe0 RX/TX to same address
+   ( myP0Addr ) LITERAL COUNT b>p0addr
+
+   \ configure ACK payload mode
+   ( DPL_P0 )     $01 R.DYNPD   nRF!1
+   ( EN_ACK_PAY ) $02 R.FEATURE nRF!1  \  see footnote ^d
+   4 SetPL_width  \  make it work for SI24R1
+
+   \ set TX power to 0dBm output, modulation to 250kbps
+   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL RfSetup
+
+   \ ARD: retransmit delay, ARC: retries
+   [ ( ARD: 250us* ) $80 ( ARC: n* ) 0 + ] LITERAL R.SETUP_RETR nRF!1
+
+   $70 SetRF_CH
+   >Standby1
+
+   Set.TX         \ enter TX mode
+   ." Device reset" cr
+   ;
+
 : Ping1  ( -- )
-   $HW
-   (TX) TX.PWR0
-   InitAckPayload
-   IRQ_INIT
-   Setup_DebLED
-   0 BEGIN
+   TxInit
+   0 STATUS !
+
+   $HW 0 BEGIN
       1+ 20 OVER n>buff
       PAYLOAD.TX
       @retries   DUP 27 SWAP n>buff  DROP
       100 ms
 
-      STATUS @ DUP . SPACE
-      RXBUFF 4 TYPE SPACE
-      TEST_INT DROP
-      0 STATUS !
-      LED.Off DEB.Off
+      STATUS @ 0 STATUS !
+      DUP BIT4 AND IF ." Max retries cleared" CR THEN
+      \ DUP BIT5 AND IF ." Tx data sent" CR THEN
+      DUP BIT6 AND IF ." Rx data ready" CR THEN
+      ( s ) . SPACE RXBUFF 4 TYPE SPACE
+      LED.Off  \  DEB.Off
 
       900 ms
       ?RX  \ input on serial line

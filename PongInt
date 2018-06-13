@@ -4,34 +4,21 @@
 
 \res MCU: STM8S103
 \res export BIT0 BIT1 BIT2 BIT3 BIT4 BIT5 BIT6 BIT7
-\res export PB_ODR PB_DDR PB_CR1 PB_CR2
-\res export PC_ODR PC_IDR PC_DDR PC_CR1 PC_CR2
-\res export EXTI_CR1 INT_EXTI2
+\res export INT_EXTI2
+
+\res MCU: nRF24L01
+\res export R.SETUP_RETR R.STATUS R.OBSERVE_TX R.DYNPD R.FEATURE
 
 \ helper word: create BSET/BRES instructions
 #require ]B!
 
-5 CONSTANT _LED   \ Led connected to port B, Pin 5
-
-$07 CONSTANT R.STATUS
-$1C CONSTANT R.DYNPD
-$1D CONSTANT R.FEATURE
 
 NVM
-
-: Setup_B  ( -- )
-   [ 1 PB_DDR 5 ]B!  \ Port B outputs
-   [ 1 PB_CR1 5 ]B!  \ set up as push pull outputs
-   ;
-
-: LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
-
-: LED.Off  ( -- )  [ 1 PB_ODR _LED ]B! ;
 
 : FlashLed  ( -- )  LED.ON   2 ms   LED.Off ;
 
 : TX.PWR0  ( -- )  \ Set to 250kbps and 0dBm (SI24R1: +7dBm) output
-   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH BIT0 >HIGH ] LITERAL $06 nRF!1
+   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH BIT0 >HIGH ] LITERAL RfSetup
    ;
 
 : InitAckPayload  ( -- )  \ PRX and PTX config for payload in ACK
@@ -45,14 +32,6 @@ NVM
 
 VARIABLE STATUS  \ nRF24 STATUS from IRQ
 
-: IRQ_INIT ( -- )  \  enable nRF24 IRQ interrupt of PC.4
-   [ 0 PC_DDR 4 ]B!
-   [ 0 PC_CR1 4 ]B!
-   [ 1 PC_CR2 4 ]B!    \  enable interrupt of PC.4
-   [ 1 EXTI_CR1 5 ]B!  \  PC falling edge interrupt
-   0 STATUS !
-   ;
-
 \ interrupt service routine
 HERE ]      \ headerless code (keep xt on stack)
    SAVEC
@@ -60,20 +39,44 @@ HERE ]      \ headerless code (keep xt on stack)
    RXBUFF P0_WIDTH rx>b STATUS !
    $70 R.STATUS nRF!1
    IRET
-[ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
+   [ OVERT ( xt ) INT_EXTI2 ! \ set Port C int vector
 
-: Pong  ( -- )
-   \  Pong until space char on serial console
-   Setup_B
+HERE $05A3 , $B4C5 , $D6E7 , ( myP0Addr )
+
+: RxInit  ( -- )  \  setup as primary receiver
+   nRF24Init   \ general setup
+   0 STATUS !
+   IrqInit     \  enable nRF24 IRQ interrupt
+   \ set pipe0 RX/TX to same address
+   ( myP0Addr ) LITERAL COUNT b>p0addr
+
+   \ configure ACK payload mode
+   ( DPL_P0 )     $01 R.DYNPD   nRF!1
+   ( EN_ACK_PAY ) $02 R.FEATURE nRF!1  \  see footnote ^d
+
+   P0_WIDTH SetPL_width   \ effectively enables Pipe0
+
+   \ set TX power to 0dBm output, modulation to 250kbps
+   [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL RfSetup
+   \ ARD: retransmit delay, ARC: retries
+   ( ARD: 8*250us, ARC: 15* ) $8F R.SETUP_RETR nRF!1
+
+   $70 SetRF_CH
+   >Standby1
+   InitAckPayload
+
+   Set.RX
+   ." Device reset" cr
+   ;
+
+: Pong  ( -- )  \  Pong until space char on serial console
+   RxInit      \ now acting as a RX in standby state
+
    FlashLed  \ on power up flash led so we know device is a pong
    500 ms FlashLed
-   (RX)      \ now acting as a RX in standby state
 
-   TX.PWR0   \ nRF all set
-   InitAckPayload
-   IRQ_INIT  \ get ready
-   _CE.HD    \ Enter RX state
    SetAckPayload  \  dummy data for the first received packet
+   _CE.HD    \ Enter RX state
    BEGIN
       STATUS @ IF
          \ print buffer and nRF STATUS from  receive int
