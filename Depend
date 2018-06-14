@@ -106,6 +106,7 @@ $E2 CONSTANT FLUSH_RX
 
 : IrqInit ( -- )  \  enable nRF24 IRQ interrupt of PC.4
    [ 1 EXTI_CR1 5 ]B!  \  PC falling edge interrupt
+   [ 1 PC_CR1 _IRQ ]B! \ enable pull-up 
    [ 1 PC_CR2 _IRQ ]B! \  PC4 IRQ
    ;
 
