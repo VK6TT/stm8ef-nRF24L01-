@@ -29,16 +29,17 @@ $80 CONSTANT BIT7
 $5005 CONSTANT PB_ODR
 $5007 CONSTANT PB_DDR
 $5008 CONSTANT PB_CR1
+$5009 CONSTANT PB_CR2
 
 $500A CONSTANT PC_ODR
 $500C CONSTANT PC_DDR
 $500D CONSTANT PC_CR1
 $500E CONSTANT PC_CR2
 
-$500F CONSTANT PD_ODR
-$5011 CONSTANT PD_DDR
-$5012 CONSTANT PD_CR1
-$5013 CONSTANT PD_CR2
+\ $500F CONSTANT PD_ODR
+\ $5011 CONSTANT PD_DDR
+\ $5012 CONSTANT PD_CR1
+\ $5013 CONSTANT PD_CR2
 
 $50A0 CONSTANT EXTI_CR1
 
@@ -89,44 +90,44 @@ $E2 CONSTANT FLUSH_RX
 \ nRF24L01 GPIO onfiguration  *************************************
 
 5  CONSTANT _LED  \ Led connected to port B5
-4  CONSTANT _IRQ  \ pin _IRQ on nRF24L01 connected to port C4
-3  CONSTANT _CSN  \ pin _CSN on nRF24L01 connected to port D3
-2  CONSTANT _CE   \ pin _CE on nRF24L01 connected to port D2
+4  CONSTANT _IRQ  \ pin _IRQ on nRF24L01 connected to port b4
+4  CONSTANT _CSN  \ pin _CSN on nRF24L01 connected to port C4
+3  CONSTANT _CE   \ pin _CE on nRF24L01 connected to port c3
 
 : setup_pins  ( -- )
    [ 1 PB_DDR _LED ]B! \ PB5 debug LED output
    [ 1 PB_CR1 _LED ]B! \ set up as low-side output (PB.5 is "open drain")
-   [ $0C ( 0b00001100 ) PD_DDR ]C!  \ Port D outputs
-   [ $0C                PD_CR1 ]C!  \ set up as push pull outputs
-   [ $0C                PD_CR2 ]C!  \ fast mode outputs
-   [ $60 ( 0b01100000 ) PC_DDR ]C!  \ port C outputs
-   [ $60                PC_CR1 ]C!  \ set as push pull outputs
-   [ $60                PC_CR2 ]C!  \ set as fast mode outputs
+\   [ $0C ( 0b00001100 ) PD_DDR ]C!  \ Port D outputs
+\   [ $0C                PD_CR1 ]C!  \ set up as push pull outputs
+\   [ $0C                PD_CR2 ]C!  \ fast mode outputs
+   [ $78 ( 0b01111000 ) PC_DDR ]C!  \ port C outputs
+   [ $78                PC_CR1 ]C!  \ set as push pull outputs
+   [ $78                PC_CR2 ]C!  \ set as fast mode outputs
    ;
 
-: IrqInit ( -- )  \  enable nRF24 IRQ interrupt of PC.4
-   [ 1 EXTI_CR1 5 ]B!  \  PC falling edge interrupt
-   [ 1 PC_CR1 _IRQ ]B! \ enable pull-up 
-   [ 1 PC_CR2 _IRQ ]B! \  PC4 IRQ
+: IrqInit ( -- )  \  enable nRF24 IRQ interrupt of PB.4
+   [ 1 EXTI_CR1 BIT3 ]B!  \  PB falling edge interrupt
+   [ 1 PB_CR1 _IRQ ]B! \ enable pull-up 
+   [ 1 PB_CR2 _IRQ ]B! \  PB4 IRQ
    ;
 
 : LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
 : LED.Off  ( -- ) [ 1 PB_ODR _LED ]B! ;
 
 : _CE.LOW  ( -- )
-   [ 0 PD_ODR _CE ]B!
+   [ 0 PC_ODR _CE ]B!
    ;
 
 : _CE.HIGH  ( -- )
-   [ 1 PD_ODR _CE ]B!
+   [ 1 PC_ODR _CE ]B!
    ;
 
 : _CSN.LOW  ( -- )
-   [ 0 PD_ODR _CSN ]B!
+   [ 0 PC_ODR _CSN ]B!
    ;
 
 : _CSN.High  ( -- )
-   [ 1 PD_ODR _CSN ]B!
+   [ 1 PC_ODR _CSN ]B!
    ;
 
 \ SPI Setup and Commands ******************************************
