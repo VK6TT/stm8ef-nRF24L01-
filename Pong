@@ -3,58 +3,63 @@
 \res export PB_ODR PB_DDR PB_CR1 PB_CR2
 
 #require ]B!
-
 NVM
-
-5 CONSTANT _LED   \ Led connected to port B, Pin 5
-
-: Setup_B  ( -- )
-   BIT5 PB_DDR C!  \ Port B outputs
-   BIT5 PB_CR1 C!  \ set up as push pull outputs
-   ;
-
-: LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
-
-: LED.Off  ( -- )  [ 1 PB_ODR _LED ]B! ;
-
-: FlashLed  ( -- )  LED.ON   2 ms   LED.Off ;
-
+: FlashLed  ( -- )  LED.ON   5 ms   LED.Off 
+;
 : TX.PWR0  ( -- )  \ SEt to 0dBm output and 250kbps
    [ $0 BIT5 >HIGH BIT2 >HIGH BIT1 >HIGH ] LITERAL $06 nRF!1
-   ;
+;
+: IRQ@AND  ( c1 ---- f1 ) \ Get Interrupts then AND with C1
+   R.Status nRF@1 AND 
+;
+: RX_DR? Bit6 IRQ@AND 
+;
+: SetAddress \ LSB first
+   $E7 $D6 $C5 $B4 $A3 
+   5 0 do 
+      I mybuff + c!
+      loop
+   mybuff 5 b>p0addr
+;
 
 : PAYLOAD.RX  ( -- )  \ stores n bytes as set by P0_width in MYBUFF
    BEGIN
       RX_DR?  \ wait until data is ready
    UNTIL
-   \  >STANDBY1 ( this is optional )
    MYBUFF P0_WIDTH nrf>b DROP
-   _CSN.HIGH
    BIT6 R.STATUS nRF!1
-   CLR_INT
-   \  _CE.HD ( like >STANDBY this is optional ) \ go back to being a RX
-   ;
-
+   CLRINT
+;
 : TESTRX  ( -- )
-   (RX)      \ now acting as a RX in standby state
-   TX.PWR0
-   _CE.HD    \ Enter RX state
+   _CE.HIGH    \ Enter RX state
+   13 *10us
    BEGIN
       RX_DR? IF
+         flashled
          PAYLOAD.RX
          MYBUFF P0_WIDTH TYPE CR
       THEN
       ?RX  \ input on serial line
       IF 32 = ELSE 0 THEN  \ only if it is a space char do we exit
    UNTIL
-   ;
-
+   _CE.LOW
+;
+: PongSetup
+   nRF24init \ setup_pins, spiOn
+   SetAddress
+   P0_WIDTH SetPL_width
+   SET.RX \ in standby
+   TX.PWR0
+   $70 SetRF_CH
+   \ ARD: retransmit delay, ARC: retries
+   [ ( ARD: 250us* ) $80 ( ARC: n* ) $F + ] LITERAL R.SETUP_RETR nRF!1
+\   $HW 
+;
 : Pong  ( -- )  \ on power up flash led so we know device is a pong
-   Setup_B
+   PongSetup
    FlashLed   500 ms   FlashLed
    TESTRX
-   ;
-
+;
 ' Pong 'Boot !
 
 RAM
