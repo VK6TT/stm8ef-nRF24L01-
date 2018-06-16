@@ -22,13 +22,8 @@ NVM
 
 \ bit and variable manipulation ***************************
 
-: >LOW  ( c1 bitn ---- c2 )  \ set bitn low
-   NOT AND
-   ;
-
-: >HIGH  ( c1 bitn ---- c2 )  \ set bitn high
-   OR
-   ;
+: >LOW ( c1 bitn ---- c2 ) NOT AND ; \ set bitn low
+: >HIGH  ( c1 bitn ---- c2 ) OR ; \ set bitn high
 
 \ talk to nRF24L01+ ***************************************
 
@@ -69,7 +64,7 @@ NVM
    R.RF_SETUP nRF!1
    ;
 
-: SetRF_CH  ( -- ) \ set channel
+: SetRF_CH  ( c -- ) \ set channel
    R.RF_CH nRF!1
    ;
 
@@ -97,7 +92,7 @@ NVM
 
 : _CE.HD  ( -- )
    \ set CE high and pause
-   _CE.HIGH   13 *10us
+   _CE.HIGH   5 *10us
    ;
 
 : Set.RX  ( -- )
@@ -111,7 +106,8 @@ NVM
 
 : nRF24Init  ( -- )  \ stuff we must do after a reset or power on
    setup_pins    \ set up pins and SPI (RST)
-   _CSN.HIGH 1 SPIon
+   _CSN.HIGH 
+   ( 1 ) SPIon    \ not setting clock via stack
    100 ms        \ delay after power-on reset (spec fig. 3)
    FlushRx FlushTx ClrInt
    ;
@@ -137,7 +133,7 @@ NVM
 : b>tx ( b c -- s )
    \  copy c bytes from buffer b to TX payload and send, return STATUS
    W_TX_PAYLOAD b>nRF
-   _CE.HD _CE.LOW  \  10us minimum, using 130uS
+   _CE.HD _CE.LOW  \  10us minimum, using 50uS
    ;
 
 : b>ack ( b c p -- s )
