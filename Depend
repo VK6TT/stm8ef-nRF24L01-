@@ -26,19 +26,21 @@ $40 CONSTANT BIT6
 $80 CONSTANT BIT7
 
 \ STM8 port register addresses
+RAM \ only used here we save some flash by setting them up in RAM
 $5005 CONSTANT PB_ODR
 $5007 CONSTANT PB_DDR
 $5008 CONSTANT PB_CR1
+$5009 CONSTANT PB_CR2
 
 $500A CONSTANT PC_ODR
 $500C CONSTANT PC_DDR
 $500D CONSTANT PC_CR1
 $500E CONSTANT PC_CR2
 
-$500F CONSTANT PD_ODR
-$5011 CONSTANT PD_DDR
-$5012 CONSTANT PD_CR1
-$5013 CONSTANT PD_CR2
+\ $500F CONSTANT PD_ODR
+\ $5011 CONSTANT PD_DDR
+\ $5012 CONSTANT PD_CR1
+\ $5013 CONSTANT PD_CR2
 
 $50A0 CONSTANT EXTI_CR1
 
@@ -48,6 +50,7 @@ $5201 CONSTANT SPI_CR2
 $5204 CONSTANT SPI_DR
 $5203 CONSTANT SPI_SR
 
+NVM
 \ PC ext. interrupt vector
 $801E CONSTANT INT_EXTI2
 
@@ -89,45 +92,32 @@ $E2 CONSTANT FLUSH_RX
 \ nRF24L01 GPIO onfiguration  *************************************
 
 5  CONSTANT _LED  \ Led connected to port B5
-4  CONSTANT _IRQ  \ pin _IRQ on nRF24L01 connected to port C4
-3  CONSTANT _CSN  \ pin _CSN on nRF24L01 connected to port D3
-2  CONSTANT _CE   \ pin _CE on nRF24L01 connected to port D2
+4  CONSTANT _IRQ  \ pin _IRQ on nRF24L01 connected to port b4
+4  CONSTANT _CSN  \ pin _CSN on nRF24L01 connected to port C4
+3  CONSTANT _CE   \ pin _CE on nRF24L01 connected to port c3
 
 : setup_pins  ( -- )
    [ 1 PB_DDR _LED ]B! \ PB5 debug LED output
    [ 1 PB_CR1 _LED ]B! \ set up as low-side output (PB.5 is "open drain")
-   [ $0C ( 0b00001100 ) PD_DDR ]C!  \ Port D outputs
-   [ $0C                PD_CR1 ]C!  \ set up as push pull outputs
-   [ $0C                PD_CR2 ]C!  \ fast mode outputs
-   [ $60 ( 0b01100000 ) PC_DDR ]C!  \ port C outputs
-   [ $60                PC_CR1 ]C!  \ set as push pull outputs
-   [ $60                PC_CR2 ]C!  \ set as fast mode outputs
+   [ $78 ( 0b01111000 ) PC_DDR ]C!  \ port C outputs
+   [ $78                PC_CR1 ]C!  \ set as push pull outputs
+   [ $78                PC_CR2 ]C!  \ set as fast mode outputs
    ;
 
-: IrqInit ( -- )  \  enable nRF24 IRQ interrupt of PC.4
-   [ 1 EXTI_CR1 5 ]B!  \  PC falling edge interrupt
-   [ 1 PC_CR1 _IRQ ]B! \ enable pull-up 
-   [ 1 PC_CR2 _IRQ ]B! \  PC4 IRQ
+: IrqInit ( -- )  \  enable nRF24 IRQ interrupt of PB.4
+   [ 1 EXTI_CR1 BIT3 ]B!  \  PB falling edge interrupt
+   [ 1 PB_CR1 _IRQ ]B! \ enable pull-up 
+   [ 1 PB_CR2 _IRQ ]B! \  PB4 IRQ
    ;
 
 : LED.On  ( -- )  [ 0 PB_ODR _LED ]B! ;
 : LED.Off  ( -- ) [ 1 PB_ODR _LED ]B! ;
 
-: _CE.LOW  ( -- )
-   [ 0 PD_ODR _CE ]B!
-   ;
+: _CE.LOW  ( -- ) [ 0 PC_ODR _CE ]B!  ;
+: _CE.HIGH ( -- ) [ 1 PC_ODR _CE ]B!  ;
 
-: _CE.HIGH  ( -- )
-   [ 1 PD_ODR _CE ]B!
-   ;
-
-: _CSN.LOW  ( -- )
-   [ 0 PD_ODR _CSN ]B!
-   ;
-
-: _CSN.High  ( -- )
-   [ 1 PD_ODR _CSN ]B!
-   ;
+: _CSN.LOW ( -- ) [ 0 PC_ODR _CSN ]B! ;
+: _CSN.High ( -- ) [ 1 PC_ODR _CSN ]B! ;
 
 \ SPI Setup and Commands ******************************************
 
@@ -139,23 +129,14 @@ $E2 CONSTANT FLUSH_RX
 \      1    STM8 is master
 \       0   SCK to 0 when idle
 \        0  First clock transition is when data is read
-\ 00111100  = $3C
-
 
 \ Init and enable SPI
-: SPIon ( baud -- )
-   [
-     $5C C,              \  INCW    X         ; pull baud
-     $F6 C,              \  LD      A,(X)
-     $5C C,              \  INCW    X
-     $A407 ,             \  AND     A,#7      ; CPOL=CPHA=0
-     $4E C,              \  SWAP    A         ; 16 *
-     $47 C,              \  SRA     A         ; 2 /
-     $AA04 ,             \  OR      A,#4      ; set master mode
-     $C7 C, SPI_CR1 , ]  \  LD      SPI_CR1,A
-   [ $01 SPI_CR2 ]C!     \ no NSS, FD, no CRC
-   [ 1 SPI_CR1 6 ]B!    \ SPI enable
-   ;
+
+: SPIon ( -- ) \ comment out all except desired speed and last line
+\   [ bit6 ( spi on ) bit4 OR bit3 OR ( clk/16 ) 
+   [ bit6 ( spi on ) bit5 OR bit4 OR bit3 OR ( clk/256 ) 
+   bit2 ( master ) OR SPI_CR1 ]C! 
+;
 
 : SPI  ( c -- c )
    [  $E601 ,                 \ LD   A,(1,X)
